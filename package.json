@@ -7,6 +7,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "node scripts/start.js",
+    "test:db": "node scripts/test-db.js",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "postinstall": "electron-builder install-app-deps"
