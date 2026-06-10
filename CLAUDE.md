@@ -36,8 +36,8 @@ electron/preload.js   — contextBridge → window.api
 electron/db.js        — SQLite, единственное место с SQL (репозиторий)
 src/index.html        — каркас вкладок
 src/styles.css        — стили (база из geojson to xlxs2.html)
-src/geojson.js        — extractLonLat и хелперы (перенос «как есть»)
-src/xlsx-export.js    — точки → XLSX
+shared/geojson.js     — extractLonLat (UMD: require в main + window.GeoJSONLib в renderer)
+electron/xlsx-export.js — GeoJSON → XLSX-буфер (main, использует npm-пакет xlsx)
 src/views/catalog.js  — справочник городов
 src/views/zones.js    — журнал город→зоны, drag&drop, секция «без города»
 src/views/map.js      — Leaflet-карта

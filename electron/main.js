@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const db = require("./db");
+const { geojsonToXlsxBuffer } = require("./xlsx-export");
 
 // Точка входа главного процесса Electron.
 // IPC-обработчики (cities/zones/log) регистрируются в registerIpc().
@@ -67,6 +68,7 @@ function registerIpc() {
   handle("zones:move", (id, newCityId) => db.zones.move(id, newCityId));
   handle("zones:delete", (id) => db.zones.delete(id));
   handle("zones:exportGeojson", (id) => exportGeojson(id));
+  handle("zones:exportXlsx", (id) => exportXlsx(id));
 
   // Журнал действий
   handle("log:list", (limit) => db.log.list(limit));
@@ -91,6 +93,27 @@ async function exportGeojson(id) {
   fs.writeFileSync(filePath, zone.geojson, "utf-8");
   db.appendLog("info", `Экспортирован GeoJSON зоны «${zone.name}» → ${filePath}`);
   return { canceled: false, filePath };
+}
+
+// Экспорт XLSX (генерируется из хранимого GeoJSON) через диалог сохранения.
+async function exportXlsx(id) {
+  const zone = db.zones.get(id);
+  if (!zone) throw new Error("Зона не найдена");
+
+  const { buffer, count } = geojsonToXlsxBuffer(zone.geojson);
+
+  const defaultName = (zone.name || "zone") + ".xlsx";
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Сохранить XLSX",
+    defaultPath: defaultName,
+    filters: [{ name: "Excel", extensions: ["xlsx"] }],
+  });
+  if (canceled || !filePath) return { canceled: true };
+
+  fs.writeFileSync(filePath, buffer);
+  db.zones.markXlsxGenerated(id); // фиксируем дату последней генерации XLSX
+  db.appendLog("info", `Экспортирован XLSX зоны «${zone.name}» (точек: ${count}) → ${filePath}`);
+  return { canceled: false, filePath, count };
 }
 
 app.whenReady().then(() => {

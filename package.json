@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node scripts/start.js",
     "test:db": "node scripts/test-db.js",
+    "test:geojson": "node test/geojson-smoke.js",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "postinstall": "electron-builder install-app-deps"
