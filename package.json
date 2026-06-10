@@ -9,6 +9,8 @@
     "start": "node scripts/start.js",
     "test:db": "node scripts/test-db.js",
     "test:geojson": "node test/geojson-smoke.js",
+    "test:ui": "node scripts/test-ui.js",
+    "test:func": "node scripts/test-func.js",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "postinstall": "electron-builder install-app-deps"
@@ -18,6 +20,7 @@
     "productName": "GeoJSON Zones",
     "files": [
       "electron/**/*",
+      "shared/**/*",
       "src/**/*"
     ],
     "directories": {
@@ -28,7 +31,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -40,6 +45,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
+    "leaflet": "^1.9.4",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const db = require("./db");
+const selftest = require("./selftest");
 const { geojsonToXlsxBuffer } = require("./xlsx-export");
 
 // Точка входа главного процесса Electron.
@@ -28,6 +29,9 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "..", "src", "index.html"));
+
+  // Отладочные/тестовые хуки (только при выставленных GZ_* переменных).
+  if (selftest.isEnabled()) selftest.attach(mainWindow, app);
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -117,6 +121,8 @@ async function exportXlsx(id) {
 }
 
 app.whenReady().then(() => {
+  // Тестовый режим: изолированная БД во временной папке (не трогаем данные пользователя).
+  if (process.env.GZ_TESTDIR) app.setPath("userData", process.env.GZ_TESTDIR);
   db.init(app.getPath("userData"));
   registerIpc();
   createWindow();

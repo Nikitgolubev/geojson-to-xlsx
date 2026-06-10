@@ -3,27 +3,64 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    style-src 'self' 'unsafe-inline';
+    script-src 'self';
+    connect-src 'self';
+    img-src 'self' data: https://*.tile.openstreetmap.org;
+  " />
   <title>GeoJSON Zones</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <h1>GeoJSON Zones</h1>
-    <p class="subtitle">Каркас приложения готов. Вкладки добавляются на следующих этапах.</p>
-    <p id="apiStatus" class="status">Проверка моста window.api…</p>
+  <div class="layout">
+    <!-- Боковая навигация -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">◎</span>
+        <span class="brand-name">GeoJSON&nbsp;Zones</span>
+      </div>
+      <nav class="nav" id="nav">
+        <button class="nav-item" data-view="catalog">
+          <span class="nav-ico">🏙️</span><span>Города</span>
+        </button>
+        <button class="nav-item" data-view="zones">
+          <span class="nav-ico">🗂️</span><span>Зоны</span>
+        </button>
+        <button class="nav-item" data-view="map">
+          <span class="nav-ico">🗺️</span><span>Карта</span>
+        </button>
+        <button class="nav-item" data-view="log">
+          <span class="nav-ico">📝</span><span>Журнал</span>
+        </button>
+      </nav>
+      <div class="sidebar-foot">v0.1.0</div>
+    </aside>
+
+    <!-- Основная область -->
+    <main class="content">
+      <header class="content-head">
+        <h1 id="viewTitle">Города</h1>
+        <div id="viewActions" class="view-actions"></div>
+      </header>
+      <section id="viewBody" class="view-body"></section>
+    </main>
   </div>
 
-  <script>
-    // Этап 0: проверяем, что preload-мост доступен.
-    const el = document.getElementById("apiStatus");
-    if (window.api && window.api.cities && window.api.zones && window.api.log) {
-      el.textContent = "✔ Мост window.api доступен (cities / zones / log).";
-      el.classList.add("ok");
-    } else {
-      el.textContent = "✗ window.api недоступен.";
-      el.classList.add("error");
-    }
-  </script>
+  <!-- Контейнеры для модалок и тостов -->
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root"></div>
+
+  <!-- Скрипты (без сборщика, порядок важен) -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="../shared/geojson.js"></script>
+  <script src="app.js"></script>
+  <script src="views/catalog.js"></script>
+  <script src="views/zones.js"></script>
+  <script src="views/map.js"></script>
+  <script src="views/log.js"></script>
+  <script src="boot.js"></script>
 </body>
 </html>

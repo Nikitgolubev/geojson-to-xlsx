@@ -31,19 +31,28 @@
 ## Структура
 
 ```
-electron/main.js      — главный процесс: окно, IPC, ФС
+electron/main.js      — главный процесс: окно, IPC, экспорт-диалоги
 electron/preload.js   — contextBridge → window.api
 electron/db.js        — SQLite, единственное место с SQL (репозиторий)
-src/index.html        — каркас вкладок
-src/styles.css        — стили (база из geojson to xlxs2.html)
+electron/xlsx-export.js — GeoJSON → XLSX-буфер (main, npm-пакет xlsx)
+electron/selftest.js  — отладочные/тестовые хуки, активны только при GZ_* env
 shared/geojson.js     — extractLonLat (UMD: require в main + window.GeoJSONLib в renderer)
-electron/xlsx-export.js — GeoJSON → XLSX-буфер (main, использует npm-пакет xlsx)
+src/index.html        — каркас (боковая навигация + области модалок/тостов)
+src/styles.css        — стили + токены темы (CSS-переменные)
+src/app.js            — ядро renderer: роутинг, модалки, тосты, formatDate, el()
+src/boot.js           — init на DOMContentLoaded (отдельный файл — не ослабляем CSP)
 src/views/catalog.js  — справочник городов
 src/views/zones.js    — журнал город→зоны, drag&drop, секция «без города»
 src/views/map.js      — Leaflet-карта
 src/views/log.js      — журнал действий
-src/vendor/           — локальные xlsx, leaflet (без CDN)
+src/vendor/leaflet/   — локальная копия Leaflet (js/css/images, без CDN)
 ```
+
+Renderer без сборщика: <script> подключаются по порядку (leaflet → shared/geojson
+→ app → views → boot). Вкладка регистрируется через `App.registerView(name,{show})`.
+
+Тесты: `npm run test:db`, `test:geojson` (чистый node), `test:ui`, `test:func`
+(через Electron в изолированной временной БД, env GZ_*).
 
 **Принцип:** UI ходит к данным только через `window.api`. SQL — только в `db.js`.
 Новая фича = метод в `db.js` + вызов в `api` + правка одной вкладки. Остальное не трогаем.
