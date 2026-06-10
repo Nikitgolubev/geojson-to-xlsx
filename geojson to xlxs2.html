@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>GeoJSON → Excel (XLSX / ZIP)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Минимальные стили для удобства -->
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f7;
+      color: #222;
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 24px 24px 32px;
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      border-radius: 16px;
+    }
+    h1 {
+      font-size: 1.6rem;
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+    }
+    p.subtitle {
+      margin-top: 0;
+      color: #555;
+    }
+    .field {
+      margin: 16px 0;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+    }
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 0.95rem;
+    }
+    .inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #333;
+    }
+    .inline input[type="checkbox"] {
+      margin: 0;
+    }
+    .buttons-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    button {
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: none;
+      background: #007bff;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s ease, transform 0.05s ease;
+    }
+    button.secondary {
+      background: #e4e6eb;
+      color: #111;
+    }
+    button:disabled {
+      background: #9fb9dd;
+      cursor: default;
+      transform: none;
+    }
+    button:not(:disabled):active {
+      transform: translateY(1px);
+    }
+    .log-container {
+      margin-top: 20px;
+    }
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .log-header span {
+      font-size: 0.85rem;
+      color: #666;
+    }
+    #log {
+      width: 100%;
+      height: 260px;
+      box-sizing: border-box;
+      margin-top: 8px;
+      padding: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      background: #fafafa;
+      resize: vertical;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: #777;
+    }
+  </style>
+
+  <!-- Библиотеки через CDN -->
+  <!-- SheetJS (xlsx) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- JSZip -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <!-- FileSaver.js (saveAs) -->
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Конвертер GeoJSON → Excel (.xlsx / ZIP)</h1>
+    <p class="subtitle">
+      Выберите один или несколько файлов <code>.geojson</code>/<code>.json</code>.<br>
+      • Если выбран <strong>один</strong> файл — будет скачан один <strong>.xlsx</strong>.<br>
+      • Если выбрано <strong>несколько</strong> файлов — будет скачан <strong>ZIP</strong> со множеством <strong>.xlsx</strong>.
+    </p>
+
+    <div class="field">
+      <label for="fileInput">Файлы GeoJSON</label>
+      <input
+        id="fileInput"
+        type="file"
+        multiple
+        accept=".geojson,.json,application/geo+json,application/json"
+      />
+      <div class="hint">Можно выделить несколько файлов сразу (Ctrl/Shift + клик).</div>
+    </div>
+
+    <div class="field">
+      <label for="zipName">Имя итогового ZIP-файла (для нескольких файлов)</label>
+      <input id="zipName" type="text" placeholder="excel_from_geojson.zip" />
+      <div class="hint">Используется только если выбрано больше одного файла. Если пусто, используется имя по умолчанию.</div>
+    </div>
+
+    <div class="field inline">
+      <input type="checkbox" id="removeClosingPoint" checked />
+      <label for="removeClosingPoint" style="margin-bottom:0; font-weight:500;">
+        Убирать замыкающую точку в кольцах Polygon/MultiPolygon (если первая = последней)
+      </label>
+    </div>
+
+    <div class="field">
+      <div class="buttons-row">
+        <button id="convertBtn">Конвертировать</button>
+        <button id="clearBtn" class="secondary" type="button">Очистить выбор и результаты</button>
+      </div>
+    </div>
+
+    <div class="log-container">
+      <div class="log-header">
+        <strong>Лог / прогресс</strong>
+        <span id="statusInfo"></span>
+      </div>
+      <textarea id="log" readonly></textarea>
+      <div class="hint">
+        Кнопка «Очистить выбор и результаты» не очищает лог — история использования сохраняется в этом окне.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const fileInput = document.getElementById("fileInput");
+      const convertBtn = document.getElementById("convertBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const logEl = document.getElementById("log");
+      const statusInfoEl = document.getElementById("statusInfo");
+      const zipNameInput = document.getElementById("zipName");
+      const removeClosingPointCheckbox = document.getElementById("removeClosingPoint");
+
+      function log(message) {
+        const ts = new Date().toISOString().substring(11, 19); // HH:MM:SS
+        logEl.value += `[${ts}] ${message}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log(message);
+      }
+
+      function setStatus(text) {
+        statusInfoEl.textContent = text || "";
+      }
+
+      /**
+       * Валидация одной координаты и добавление в массив точек
+       * coord: [lon, lat, ...]
+       * ВАЖНО: не сокращаем число знаков, не форматируем, берём значения как есть.
+       */
+      function makePointPusher(points, contextLabel) {
+        return function addPoint(coord) {
+          if (!Array.isArray(coord)) {
+            log(`  ⚠ Пропуск не-массива координат (${contextLabel}).`);
+            return;
+          }
+          if (coord.length < 2) {
+            log(`  ⚠ Пропуск точки с длиной массива < 2 (${JSON.stringify(coord)}) в ${contextLabel}.`);
+            return;
+          }
+
+          // Берём исходные значения из GeoJSON "как есть"
+          const lonRaw = coord[0];
+          const latRaw = coord[1];
+
+          // Только проверяем, что они являются конечными числами, не меняя их вид
+          const lonNum = Number(lonRaw);
+          const latNum = Number(latRaw);
+          if (!Number.isFinite(lonNum) || !Number.isFinite(latNum)) {
+            log(`  ⚠ Пропуск точки с нечисловыми координатами (${JSON.stringify(coord)}) в ${contextLabel}.`);
+            return;
+          }
+
+          // В итоговый массив кладём исходные значения (без округлений/сокращений)
+          points.push({ longitude: lonRaw, latitude: latRaw });
+        };
+      }
+
+      /**
+       * Универсальная функция извлечения точек из любого GeoJSON.
+       * @param {object} geojson
+       * @param {object} options { removeClosingPoint: boolean }
+       * @returns {{points: Array<{longitude:number, latitude:number} | {longitude:any, latitude:any}>}}
+       */
+      function extractLonLat(geojson, options) {
+        const points = [];
+        const removeClosingPoint = !!options.removeClosingPoint;
+        const addPoint = makePointPusher(points, "coordinates");
+
+        function processLineString(coords, ctx) {
+          if (!Array.isArray(coords)) {
+            log(`  ⚠ Ожидался массив координат LineString, получено: ${typeof coords} (${ctx}).`);
+            return;
+          }
+          const pushPoint = makePointPusher(points, ctx || "LineString");
+          for (const c of coords) {
+            pushPoint(c);
+          }
+        }
+
+        function processPolygon(coords, ctx) {
+          if (!Array.isArray(coords)) {
+            log(`  ⚠ Ожидался массив колец Polygon, получено: ${typeof coords} (${ctx}).`);
+            return;
+          }
+          let ringIndex = 0;
+          for (let ring of coords) {
+            const ringCtx = `${ctx || "Polygon"}[ring ${ringIndex}]`;
+            if (!Array.isArray(ring)) {
+              log(`  ⚠ Ожидался массив точек в кольце Polygon, получено: ${typeof ring} (${ringCtx}).`);
+              ringIndex++;
+              continue;
+            }
+            if (removeClosingPoint && ring.length > 1) {
+              const first = ring[0];
+              const last = ring[ring.length - 1];
+              if (
+                Array.isArray(first) && Array.isArray(last) &&
+                first.length >= 2 && last.length >= 2 &&
+                Number(first[0]) === Number(last[0]) &&
+                Number(first[1]) === Number(last[1])
+              ) {
+                ring = ring.slice(0, ring.length - 1);
+              }
+            }
+            const pushPoint = makePointPusher(points, ringCtx);
+            for (const c of ring) {
+              pushPoint(c);
+            }
+            ringIndex++;
+          }
+        }
+
+        function traverse(node, ctx) {
+          if (!node || typeof node !== "object") {
+            log(`⚠ Пропуск узла GeoJSON (не объект) в контексте: ${ctx || "root"}.`);
+            return;
+          }
+
+          const type = node.type;
+          switch (type) {
+            case "FeatureCollection":
+              if (!Array.isArray(node.features)) {
+                log("⚠ FeatureCollection.features не является массивом.");
+                return;
+              }
+              node.features.forEach((f, idx) => traverse(f, `FeatureCollection.features[${idx}]`));
+              break;
+
+            case "Feature":
+              if (!node.geometry) {
+                log(`⚠ Feature без geometry (${ctx || ""}). Пропускаем.`);
+                return;
+              }
+              traverse(node.geometry, `${ctx || "Feature"}.geometry`);
+              break;
+
+            case "GeometryCollection":
+              if (!Array.isArray(node.geometries)) {
+                log("⚠ GeometryCollection.geometries не является массивом.");
+                return;
+              }
+              node.geometries.forEach((g, idx) => traverse(g, `GeometryCollection.geometries[${idx}]`));
+              break;
+
+            case "Point":
+              addPoint(node.coordinates);
+              break;
+
+            case "MultiPoint":
+              if (!Array.isArray(node.coordinates)) {
+                log("⚠ MultiPoint.coordinates не является массивом.");
+                return;
+              }
+              {
+                const pushPoint = makePointPusher(points, "MultiPoint");
+                for (const c of node.coordinates) {
+                  pushPoint(c);
+                }
+              }
+              break;
+
+            case "LineString":
+              processLineString(node.coordinates, "LineString");
+              break;
+
+            case "MultiLineString":
+              if (!Array.isArray(node.coordinates)) {
+                log("⚠ MultiLineString.coordinates не является массивом.");
+                return;
+              }
+              node.coordinates.forEach((ls, idx) =>
+                processLineString(ls, `MultiLineString[${idx}]`)
+              );
+              break;
+
+            case "Polygon":
+              processPolygon(node.coordinates, "Polygon");
+              break;
+
+            case "MultiPolygon":
+              if (!Array.isArray(node.coordinates)) {
+                log("⚠ MultiPolygon.coordinates не является массивом.");
+                return;
+              }
+              node.coordinates.forEach((poly, idx) =>
+                processPolygon(poly, `MultiPolygon[${idx}]`)
+              );
+              break;
+
+            default:
+              log(`⚠ Неизвестный или неподдерживаемый тип геометрии: "${type}" (${ctx || "root"}).`);
+          }
+        }
+
+        traverse(geojson, "root");
+        return { points };
+      }
+
+      /**
+       * Обработка одного файла → прямое скачивание XLSX.
+       */
+      async function processSingleFile(file, removeClosingPoint) {
+        setStatus(`Обработка файла "${file.name}"...`);
+        log(`\n=== Файл: "${file.name}" (одиночный режим, XLSX) ===`);
+
+        let text;
+        try {
+          text = await file.text();
+        } catch (err) {
+          log(`❌ Ошибка чтения файла "${file.name}": ${err && err.message ? err.message : err}`);
+          setStatus("Ошибка чтения файла");
+          return;
+        }
+
+        let geojson;
+        try {
+          geojson = JSON.parse(text);
+        } catch (err) {
+          log(`❌ Ошибка парсинга JSON в файле "${file.name}": ${err && err.message ? err.message : err}`);
+          setStatus("Ошибка парсинга JSON");
+          return;
+        }
+
+        const { points } = extractLonLat(geojson, { removeClosingPoint });
+        const count = points.length;
+        log(`✔ Извлечено точек: ${count} (из файла "${file.name}")`);
+
+        let ws;
+        if (count === 0) {
+          ws = XLSX.utils.json_to_sheet([], { header: ["longitude", "latitude"] });
+        } else {
+          ws = XLSX.utils.json_to_sheet(points, { header: ["longitude", "latitude"] });
+        }
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+
+        const baseName = file.name.replace(/\.[^/.]+$/, "");
+        const excelName = baseName + ".xlsx";
+
+        try {
+          XLSX.writeFile(wb, excelName);
+          log(`✔ XLSX-файл "${excelName}" сгенерирован и отправлен на скачивание.`);
+          setStatus(`Готово. XLSX: ${excelName}`);
+        } catch (err) {
+          log(`❌ Ошибка записи XLSX (writeFile) для файла "${file.name}": ${err && err.message ? err.message : err}`);
+          setStatus("Ошибка генерации XLSX");
+        }
+      }
+
+      /**
+       * Обработка нескольких файлов → ZIP с множеством XLSX.
+       */
+      async function processMultipleFiles(files, removeClosingPoint) {
+        const zip = new JSZip();
+        let processedFiles = 0;
+        let totalPointsAll = 0;
+        let filesWithErrors = 0;
+        let addedFilesToZip = 0;
+
+        log(`Начало пакетной обработки. Файлов выбрано: ${files.length}.`);
+
+        for (const file of files) {
+          processedFiles++;
+          setStatus(`Обработка файла ${processedFiles} из ${files.length}...`);
+          log(`\n=== Файл: "${file.name}" ===`);
+
+          let text;
+          try {
+            text = await file.text();
+          } catch (err) {
+            log(`❌ Ошибка чтения файла "${file.name}": ${err && err.message ? err.message : err}`);
+            filesWithErrors++;
+            continue;
+          }
+
+          let geojson;
+          try {
+            geojson = JSON.parse(text);
+          } catch (err) {
+            log(`❌ Ошибка парсинга JSON в файле "${file.name}": ${err && err.message ? err.message : err}`);
+            filesWithErrors++;
+            continue;
+          }
+
+          const { points } = extractLonLat(geojson, { removeClosingPoint });
+          const count = points.length;
+          totalPointsAll += count;
+          log(`✔ Извлечено точек: ${count} (из файла "${file.name}")`);
+
+          let ws;
+          if (count === 0) {
+            ws = XLSX.utils.json_to_sheet([], { header: ["longitude", "latitude"] });
+          } else {
+            ws = XLSX.utils.json_to_sheet(points, { header: ["longitude", "latitude"] });
+          }
+
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+
+          let xlsxBytes;
+          try {
+            xlsxBytes = XLSX.write(wb, {
+              bookType: "xlsx",
+              type: "array"
+            });
+          } catch (err) {
+            log(`❌ Ошибка генерации XLSX для файла "${file.name}": ${err && err.message ? err.message : err}`);
+            filesWithErrors++;
+            continue;
+          }
+
+          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          const excelName = baseName + ".xlsx";
+
+          zip.file(excelName, xlsxBytes);
+          addedFilesToZip++;
+          log(`📁 Добавлен в ZIP как "${excelName}".`);
+        }
+
+        if (addedFilesToZip === 0) {
+          log(`\n⚠ Ни один файл не был успешно добавлен в ZIP. Архив не будет создан.`);
+          setStatus("Готово (ошибка: ZIP пустой)");
+          return;
+        }
+
+        const zipName = (zipNameInput.value && zipNameInput.value.trim()) || "excel_from_geojson.zip";
+        setStatus(`Формирование ZIP "${zipName}"...`);
+        log(`\n=== Итоги ===`);
+        log(`Файлов обработано: ${processedFiles}`);
+        log(`Файлов с ошибками: ${filesWithErrors}`);
+        log(`Excel-файлов в ZIP: ${addedFilesToZip}`);
+        log(`Общее количество извлечённых точек: ${totalPointsAll}`);
+        log(`Формирование ZIP-архива...`);
+
+        try {
+          const blob = await zip.generateAsync({ type: "blob" });
+          log(`✔ ZIP-архив сформирован. Инициируется скачивание "${zipName}".`);
+          saveAs(blob, zipName);
+          setStatus(`Готово. ZIP: ${zipName}`);
+        } catch (err) {
+          log(`❌ Ошибка генерации ZIP: ${err && err.message ? err.message : err}`);
+          setStatus("Ошибка генерации ZIP");
+        }
+      }
+
+      /**
+       * Основной обработчик кнопки "Конвертировать".
+       */
+      async function handleConvertClick() {
+        const files = fileInput.files;
+        if (!files || files.length === 0) {
+          alert("Пожалуйста, выберите хотя бы один файл GeoJSON.");
+          return;
+        }
+
+        // Каждый запуск конвертации — отдельная сессия лога (лог окна не очищаем кнопкой Clear)
+        logEl.value = "";
+        const removeClosingPoint = removeClosingPointCheckbox.checked;
+        convertBtn.disabled = true;
+
+        try {
+          if (files.length === 1) {
+            await processSingleFile(files[0], removeClosingPoint);
+          } else {
+            setStatus(`Файлов выбрано: ${files.length}`);
+            await processMultipleFiles(files, removeClosingPoint);
+          }
+        } catch (err) {
+          log(`❌ Неперехваченная ошибка: ${err && err.message ? err.message : err}`);
+          setStatus("Ошибка");
+        } finally {
+          convertBtn.disabled = false;
+        }
+      }
+
+      convertBtn.addEventListener("click", () => {
+        handleConvertClick();
+      });
+
+      // Кнопка очистки выбора и результатов (лог сохраняем)
+      clearBtn.addEventListener("click", () => {
+        fileInput.value = "";
+        zipNameInput.value = "";
+        setStatus("");
+        log("Очищены выбранные файлы и результаты (лог сохранён).");
+      });
+
+      // Обновляем статус при смене выбранных файлов
+      fileInput.addEventListener("change", () => {
+        const files = fileInput.files;
+        if (files && files.length > 0) {
+          setStatus(`Файлов выбрано: ${files.length}`);
+          log(`Выбрано файлов: ${files.length}.`);
+        } else {
+          setStatus("");
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
