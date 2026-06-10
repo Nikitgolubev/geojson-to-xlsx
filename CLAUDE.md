@@ -68,6 +68,21 @@ src/vendor/           — локальные xlsx, leaflet (без CDN)
 - `zones.exportGeojson(id) / exportXlsx(id)` (exportXlsx обновляет xlsx_generated_at)
 - `log.list(limit) / append(level,message) / clear()`
 
+## Среда разработки (важные нюансы)
+
+- **Node:** ставится через nvm — `v24.16.0`. Активировать:
+  `export PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH"`.
+- **Python для node-gyp:** системный Python 3.14 убрал `distutils` и ломает сборку
+  `better-sqlite3`. В проектном `.npmrc` прописан `python=/usr/bin/python3`
+  (Apple Python 3.9 с distutils). npm выдаёт безобидный warning «Unknown config python».
+- **ELECTRON_RUN_AS_NODE:** VSCode (сам на Electron) выставляет эту переменную в
+  интегрированном терминале. Из-за неё `electron .` стартует как обычный Node и
+  `require('electron')` не отдаёт API. Поэтому `npm start` идёт через
+  `scripts/start.js`, который сбрасывает переменную для дочернего процесса. Не убирать.
+- Если после `npm install` Electron жалуется «failed to install correctly»
+  (нет `node_modules/electron/path.txt`) — распаковка бинаря прервалась; перезапустить
+  `node node_modules/electron/install.js` или переустановить electron.
+
 ## Git / GitHub
 
 - Remote: `git@github.com:Nikitgolubev/geojson-to-xlsx.git` (push по SSH; `gh` не установлен).

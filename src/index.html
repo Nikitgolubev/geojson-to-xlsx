@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>GeoJSON Zones</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <h1>GeoJSON Zones</h1>
+    <p class="subtitle">Каркас приложения готов. Вкладки добавляются на следующих этапах.</p>
+    <p id="apiStatus" class="status">Проверка моста window.api…</p>
+  </div>
+
+  <script>
+    // Этап 0: проверяем, что preload-мост доступен.
+    const el = document.getElementById("apiStatus");
+    if (window.api && window.api.cities && window.api.zones && window.api.log) {
+      el.textContent = "✔ Мост window.api доступен (cities / zones / log).";
+      el.classList.add("ok");
+    } else {
+      el.textContent = "✗ window.api недоступен.";
+      el.classList.add("error");
+    }
+  </script>
+</body>
+</html>

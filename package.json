@@ -1,0 +1,47 @@
+{
+  "name": "geojson-zones",
+  "version": "0.1.0",
+  "description": "Десктоп-приложение для хранения и систематизации зон (GeoJSON) по городам",
+  "author": "Nikita Golubev",
+  "license": "MIT",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.nikitgolubev.geojsonzones",
+    "productName": "GeoJSON Zones",
+    "files": [
+      "electron/**/*",
+      "src/**/*"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
+}
