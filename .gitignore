@@ -1,0 +1,16 @@
+# Зависимости
+node_modules/
+
+# Сборки установщиков
+dist/
+out/
+
+# Локальные базы данных
+*.db
+*.db-journal
+*.sqlite
+
+# Логи и временные файлы
+*.log
+.DS_Store
+Thumbs.db
