@@ -29,13 +29,27 @@
 ## Разработка
 
 ```bash
-npm install      # установить зависимости
-npm start        # запустить приложение в режиме разработки
-npm run dist:win # собрать Windows-установщик (.exe) в dist/
+npm install        # установить зависимости
+npm start          # запустить приложение в режиме разработки
+npm run test:db    # тест слоя данных
+npm run test:geojson  # тест разбора GeoJSON и генерации XLSX
+npm run test:ui    # обойти все вкладки (через Electron)
+npm run test:func  # тест пути renderer→IPC→БД
 ```
 
-> `better-sqlite3` — нативный модуль; при сборке пересобирается под Electron.
-> macOS-сборка пока не делается, но код кроссплатформенный (см. `CLAUDE.md`).
+## Сборка Windows-установщика (.exe)
+
+`better-sqlite3` — нативный модуль, и его **нельзя кросс-компилировать под Windows
+с macOS** (получится mac-бинарник, приложение упадёт на Windows). Поэтому
+установщик собирается на настоящей Windows:
+
+- **Рекомендуется — через GitHub Actions** (Windows-машина не нужна):
+  вкладка **Actions → Build Windows installer → Run workflow**. Готовый `.exe`
+  появится в артефактах сборки. При пуше тега `vX.Y.Z` — прикрепляется к Release.
+- **Локально на Windows:** `npm install && npm run dist:win` → `dist/…Setup.exe`.
+
+На macOS `npm run dist:win` формально отрабатывает, но получившийся `.exe`
+нерабочий (внутри mac-версия native-модуля) — использовать нельзя.
 
 ## Статус
 

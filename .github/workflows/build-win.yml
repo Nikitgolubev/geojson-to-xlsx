@@ -1,0 +1,57 @@
+name: Build Windows installer
+
+# Собирает Windows-установщик (.exe) на настоящей Windows-машине GitHub.
+# Это обязательно: на macOS нативный модуль better-sqlite3 не кросс-компилируется
+# под Windows (получается mac-бинарник, приложение падает на Windows).
+#
+# Запуск:
+#  - вручную: вкладка Actions → Build Windows installer → Run workflow;
+#  - автоматически при пуше тега вида v1.2.3 (тогда .exe прикрепляется к Release).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # .npmrc в репозитории содержит python=/usr/bin/python3 (путь только для macOS).
+      # На Windows это сломало бы node-gyp при компиляции; убираем его.
+      - name: Remove macOS-specific .npmrc
+        run: Remove-Item .npmrc -ErrorAction SilentlyContinue
+        shell: pwsh
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build installer
+        run: npm run dist:win
+        env:
+          # Без подписи кода (нет сертификата) — установщик будет неподписанным.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeoJSON-Zones-Setup
+          path: dist/*.exe
+          if-no-files-found: error
+
+      # При сборке по тегу — публикуем .exe в GitHub Release.
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
