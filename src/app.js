@@ -200,9 +200,11 @@ window.App = (function () {
         badge.textContent = String(n);
         badge.hidden = false;
       } else {
+        badge.textContent = "";
         badge.hidden = true;
       }
     } catch (_) {
+      badge.textContent = "";
       badge.hidden = true;
     }
   }

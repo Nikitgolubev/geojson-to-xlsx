@@ -259,6 +259,8 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
   font-size: 0.72rem; font-weight: 700;
 }
 .nav-item.active .nav-badge { background: #fff; color: var(--accent); border-color: #fff; }
+/* Атрибут hidden должен скрывать бейдж: перебиваем display из .nav-badge. */
+.nav-badge[hidden] { display: none; }
 
 /* ===== Поля поиска ===== */
 .search-input {

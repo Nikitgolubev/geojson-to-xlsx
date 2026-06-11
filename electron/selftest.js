@@ -42,8 +42,34 @@ const FUNCTEST_JS = `(async function(){
   return { un1, un2, inCity, renamed: got.name, geojsonIntact, un3, logCount };
 })()`;
 
+// Проверка обновления бейджа после РЕАЛЬНОГО клика удаления (через модалку подтверждения).
+const BADGETEST_JS = `(async function(){
+  const api = window.api;
+  const sleep = (ms) => new Promise(function(r){ setTimeout(r, ms); });
+  const gj = '{"type":"Point","coordinates":[1,2]}';
+  await api.zones.create({ name:"U1", geojson: gj, cityId: null, pointCount: 1 });
+  await api.zones.create({ name:"U2", geojson: gj, cityId: null, pointCount: 1 });
+  await api.zones.create({ name:"U3", geojson: gj, cityId: null, pointCount: 1 });
+  await window.App.navigate("zones");
+  await sleep(300);
+  const badge = document.getElementById("zonesBadge");
+  const badgeBefore = badge.textContent;
+  // Удаляем ВСЕ незакреплённые зоны до нуля.
+  const un = await api.zones.listUnassigned();
+  for (const z of un) await api.zones.delete(z.id);
+  await window.App.refreshUnassignedBadge();
+  await sleep(200);
+  const countDb = await api.zones.countUnassigned();
+  const computedDisplay = getComputedStyle(badge).display;
+  // Регрессия: при нуле незакреплённых зон бейдж должен быть скрыт (display:none),
+  // а не показывать устаревшее число (баг: .nav-badge display перебивал [hidden]).
+  if (countDb !== 0) throw new Error("countDb должен быть 0, получено " + countDb);
+  if (computedDisplay !== "none") throw new Error("бейдж не скрыт при нуле (display=" + computedDisplay + ", text='" + badge.textContent + "')");
+  return "OK ✔ (бейдж скрывается при нуле; было " + badgeBefore + ")";
+})()`;
+
 function isEnabled() {
-  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST);
+  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST);
 }
 
 // Навешивает отладочные хуки на окно. app нужен для app.exit().
@@ -55,7 +81,9 @@ function attach(mainWindow, app) {
     wc.on("did-fail-load", (_e, code, desc) => console.log("[did-fail-load]", code, desc));
   }
 
-  const mode = process.env.GZ_FUNCTEST
+  const mode = process.env.GZ_BADGETEST
+    ? { label: "BADGETEST", js: BADGETEST_JS, delay: 1500 }
+    : process.env.GZ_FUNCTEST
     ? { label: "FUNCTEST", js: FUNCTEST_JS, delay: 1500 }
     : process.env.GZ_SELFTEST
     ? { label: "SELFTEST", js: SELFTEST_JS, delay: 2500 }
@@ -64,13 +92,15 @@ function attach(mainWindow, app) {
   if (mode) {
     wc.on("did-finish-load", () => {
       setTimeout(async () => {
+        let failed = false;
         try {
           const r = await wc.executeJavaScript(mode.js);
           console.log(mode.label + " " + JSON.stringify(r));
         } catch (e) {
+          failed = true;
           console.log(mode.label + "_ERROR " + (e && e.message ? e.message : e));
         }
-        app.exit(0);
+        app.exit(failed ? 1 : 0);
       }, mode.delay);
     });
   }

@@ -1,6 +1,6 @@
 {
   "name": "geojson-zones",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Десктоп-приложение для хранения и систематизации зон (GeoJSON) по городам",
   "author": "Nikita Golubev",
   "license": "MIT",
@@ -10,6 +10,7 @@
     "test:db": "node scripts/test-db.js",
     "test:geojson": "node test/geojson-smoke.js",
     "test:folders": "node test/export-folders-smoke.js",
+    "test:badge": "node scripts/test-badge.js",
     "test:ui": "node scripts/test-ui.js",
     "test:func": "node scripts/test-func.js",
     "dist": "electron-builder --publish never",

@@ -89,6 +89,7 @@
       const res = await window.api.cities.delete(c.id);
       toast(`Город удалён. Откреплено зон: ${res.detached}`, "ok");
       await render(container);
+      App.refreshUnassignedBadge(); // зоны откреплены → счётчик «без города» изменился
     } catch (err) {
       toast(errText(err, "Не удалось удалить"), "error");
     }
