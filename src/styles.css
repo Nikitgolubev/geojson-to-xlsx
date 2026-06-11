@@ -306,3 +306,14 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
 .help-body ul { margin: 6px 0 12px; padding-left: 20px; }
 .help-body li { margin-bottom: 5px; }
 .help-body p { margin: 8px 0; }
+
+/* ===== v0.3.0: иконки в кнопках ===== */
+.icon { width: 15px; height: 15px; flex-shrink: 0; }
+.btn.tiny { display: inline-flex; align-items: center; gap: 5px; }
+.btn.icon-only { padding: 5px 7px; }
+/* Кнопки «Раскрыть/Свернуть все» в шапке вкладки */
+.view-actions .btn.small { white-space: nowrap; }
+
+/* ===== Модалка редактирования (label + поля) ===== */
+.modal-label { display: block; font-weight: 600; font-size: 0.85rem; margin: 10px 0 4px; }
+.modal-label:first-child { margin-top: 0; }

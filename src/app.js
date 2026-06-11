@@ -65,6 +65,33 @@ window.App = (function () {
     return `${date} ${time}`;
   }
 
+  // ---------- иконки (inline-SVG, без сети, CSP-safe) ----------
+  const ICON_PATHS = {
+    download: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3"],
+    map: ["M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z", "M9 3v15", "M15 6v15"],
+    pencil: ["M12 20h9", "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"],
+    trash: ["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M10 11v6", "M14 11v6"],
+    eye: ["M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z", "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"],
+    chevron: ["M6 9l6 6 6-6"],
+  };
+  function icon(name) {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    (ICON_PATHS[name] || []).forEach((d) => {
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", d);
+      svg.appendChild(p);
+    });
+    return svg;
+  }
+
   // ---------- тосты ----------
   function toast(message, type) {
     const root = document.getElementById("toastRoot");
@@ -262,6 +289,7 @@ window.App = (function () {
     navigate,
     init,
     el,
+    icon,
     escapeHtml,
     formatDate,
     toast,

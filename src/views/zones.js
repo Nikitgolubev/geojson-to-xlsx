@@ -5,7 +5,7 @@
 // Поток: сначала загружают зону(-ы) → они попадают в «без города» → затем назначают город.
 (function () {
   const App = window.App;
-  const { el, formatDate, toast, confirm, prompt, modal } = App;
+  const { el, icon, formatDate, toast, confirm, modal } = App;
 
   let citiesCache = [];
   let searchQuery = "";
@@ -44,8 +44,21 @@
     actions.appendChild(
       el("button", { class: "btn primary", text: "+ Загрузить зоны", onclick: () => fileInput.click() })
     );
+    actions.appendChild(
+      el("button", { class: "btn small secondary", text: "Раскрыть все", onclick: () => toggleAll(true) })
+    );
+    actions.appendChild(
+      el("button", { class: "btn small secondary", text: "Свернуть все", onclick: () => toggleAll(false) })
+    );
 
     await render(container);
+  }
+
+  // Раскрыть/свернуть все узлы городов.
+  function toggleAll(open) {
+    document.querySelectorAll(".view-body .city-node").forEach((d) => {
+      d.open = open;
+    });
   }
 
   // Подходит ли зона под текущий поиск.
@@ -97,7 +110,8 @@
       if (filtering && !zones.length) continue; // при поиске пустые города скрываем
       if (zones.length) anyShown = true;
       const ids = zones.map((z) => z.id);
-      const details = el("details", { class: "city-node", open: zones.length ? "open" : null });
+      // Свёрнуто по умолчанию; при активном поиске города с совпадениями авто-раскрываются.
+      const details = el("details", { class: "city-node", open: filtering && zones.length ? "open" : null });
       const summary = el("summary", { class: "city-summary" }, [
         groupSelectAll(ids, container),
         el("span", { class: "city-name", text: city.name }),
@@ -236,37 +250,61 @@
         meta,
       ]),
       el("div", { class: "zone-controls" }, [
-        citySelect(z, container),
-        el("button", { class: "btn tiny", text: "GeoJSON", title: "Скачать GeoJSON", onclick: () => exportGeojson(z) }),
-        el("button", { class: "btn tiny", text: "XLSX", title: "Скачать XLSX", onclick: () => exportXlsx(z, container) }),
-        el("button", { class: "btn tiny", text: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }),
-        el("button", { class: "btn tiny secondary", text: "⋯", title: "Переименовать", onclick: () => renameZone(z, container) }),
-        el("button", { class: "btn tiny danger", text: "✕", title: "Удалить", onclick: () => deleteZone(z, container) }),
+        el("button", { class: "btn tiny", title: "Скачать GeoJSON", onclick: () => exportGeojson(z) }, [icon("download"), " GeoJSON"]),
+        el("button", { class: "btn tiny", title: "Скачать XLSX", onclick: () => exportXlsx(z, container) }, [icon("download"), " XLSX"]),
+        el("button", { class: "btn tiny", title: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }, [icon("map"), " На карте"]),
+        el("button", { class: "btn tiny secondary icon-only", title: "Редактировать", onclick: () => editZone(z, container) }, [icon("pencil")]),
+        el("button", { class: "btn tiny danger icon-only", title: "Удалить", onclick: () => deleteZone(z, container) }, [icon("trash")]),
       ]),
     ]);
   }
 
-  // Селект назначения города (включая «без города»).
-  function citySelect(z, container) {
-    const sel = el("select", { class: "city-select", title: "Город зоны" });
+  // Модалка редактирования зоны: имя + город (по кнопке «Редактировать»).
+  async function editZone(z, container) {
+    const nameInput = el("input", { class: "modal-input", type: "text", value: z.name });
+    const sel = el("select", { class: "modal-input" });
     sel.appendChild(el("option", { value: "", text: "— без города —" }));
     citiesCache.forEach((c) => {
       const opt = el("option", { value: String(c.id), text: c.name });
       if (z.city_id === c.id) opt.selected = true;
       sel.appendChild(opt);
     });
-    sel.addEventListener("change", async () => {
-      const val = sel.value ? Number(sel.value) : null;
-      try {
-        await window.api.zones.assignCity(z.id, val);
-        toast(val == null ? "Зона откреплена от города" : "Город назначен", "ok");
+    const body = el("div", {}, [
+      el("label", { class: "modal-label", text: "Имя зоны (содержимое файла не меняется):" }),
+      nameInput,
+      el("label", { class: "modal-label", text: "Город:" }),
+      sel,
+    ]);
+    const ok = await modal({
+      title: "Редактировать зону",
+      bodyNode: body,
+      actions: [
+        { label: "Отмена", value: false, kind: "secondary" },
+        { label: "Сохранить", value: true, kind: "primary" },
+      ],
+    });
+    if (!ok) return;
+
+    const newName = nameInput.value.trim();
+    const newCity = sel.value ? Number(sel.value) : null;
+    try {
+      let changed = false;
+      if (newName && newName !== z.name) {
+        await window.api.zones.rename(z.id, newName);
+        changed = true;
+      }
+      if (newCity !== z.city_id) {
+        await window.api.zones.assignCity(z.id, newCity);
+        changed = true;
+      }
+      if (changed) {
+        toast("Изменения сохранены", "ok");
         await render(container);
         App.refreshUnassignedBadge();
-      } catch (err) {
-        toast(errText(err, "Не удалось изменить город"), "error");
       }
-    });
-    return sel;
+    } catch (err) {
+      toast(errText(err, "Не удалось сохранить"), "error");
+    }
   }
 
   // ---------- импорт файлов (drag&drop / выбор) ----------
@@ -402,21 +440,7 @@
     }
   }
 
-  // ---------- переименование/удаление ----------
-  async function renameZone(z, container) {
-    const name = await prompt("Новое имя зоны (содержимое файла не меняется):", z.name, {
-      title: "Переименовать зону",
-    });
-    if (!name || name === z.name) return;
-    try {
-      await window.api.zones.rename(z.id, name);
-      toast("Зона переименована", "ok");
-      await render(container);
-    } catch (err) {
-      toast(errText(err, "Не удалось переименовать"), "error");
-    }
-  }
-
+  // ---------- удаление ----------
   async function deleteZone(z, container) {
     const ok = await confirm(`Удалить зону «${z.name}»? Это действие необратимо.`, {
       title: "Удаление зоны",
