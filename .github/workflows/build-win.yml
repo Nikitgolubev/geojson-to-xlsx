@@ -18,6 +18,10 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # Нужно для публикации .exe в Release при сборке по тегу.
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,8 +31,15 @@ jobs:
         with:
           node-version: "20"
 
+      # Python 3.11 содержит distutils, нужный node-gyp для компиляции better-sqlite3
+      # под ABI Electron. В свежих образах Python 3.12+ distutils удалён → сборка падает.
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       # .npmrc в репозитории содержит python=/usr/bin/python3 (путь только для macOS).
-      # На Windows это сломало бы node-gyp при компиляции; убираем его.
+      # На Windows это сломало бы node-gyp; убираем его (Python берётся из setup-python).
       - name: Remove macOS-specific .npmrc
         run: Remove-Item .npmrc -ErrorAction SilentlyContinue
         shell: pwsh
