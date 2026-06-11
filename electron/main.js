@@ -249,6 +249,9 @@ app.whenReady().then(() => {
     onHelp: () => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:help");
     },
+    onSetTheme: (v) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:set-theme", v);
+    },
   });
 
   // macOS: пересоздать окно при клике на иконку в доке (задел под будущую mac-версию)

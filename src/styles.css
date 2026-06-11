@@ -346,3 +346,49 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
 .city-summary .summary-actions { display: inline-flex; gap: 6px; }
 .city-zones { padding: 2px 12px 12px 30px; }
 .city-zones .zone-row { border-top: 1px solid var(--border); }
+
+/* ===== v0.4.0: цветные кнопки ===== */
+:root { --btn-map: #f5841f; --btn-map-h: #e0730f; --btn-xlsx: #2e9d52; --btn-xlsx-h: #268544; }
+.btn.btn-map { background: var(--btn-map); color: #fff; }
+.btn.btn-map:hover { background: var(--btn-map-h); }
+.btn.btn-xlsx { background: var(--btn-xlsx); color: #fff; }
+.btn.btn-xlsx:hover { background: var(--btn-xlsx-h); }
+
+/* ===== v0.4.0: переключатель темы у версии ===== */
+.sidebar-foot { display: flex; align-items: center; gap: 8px; }
+.theme-toggle {
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #c9cdd6; border-radius: 8px; padding: 2px 7px; cursor: pointer; font-size: 0.95rem; line-height: 1;
+}
+.theme-toggle:hover { background: rgba(255, 255, 255, 0.16); }
+
+/* ===== v0.4.0: тёмная тема (переопределение токенов + точечные правки) ===== */
+:root[data-theme="dark"] {
+  --bg: #15171c; --surface: #1e2128; --surface-2: #262a32;
+  --text: #e6e8ec; --text-muted: #9aa0ab;
+  --accent: #0a84ff; --accent-hover: #3a9bff;
+  --warning-bg: #3a2e16; --warning-border: #6b551f; --warning-text: #f0c36d;
+  --danger: #ff453a; --danger-hover: #ff6961; --ok: #30d158;
+  --border: #343843;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45); --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme="dark"] .btn.secondary { background: #2c3038; color: var(--text); }
+:root[data-theme="dark"] .btn.secondary:hover { background: #353a44; }
+:root[data-theme="dark"] .search-input,
+:root[data-theme="dark"] .city-select,
+:root[data-theme="dark"] .map-select,
+:root[data-theme="dark"] .modal-input,
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] textarea {
+  background: var(--surface-2); color: var(--text); border-color: var(--border);
+}
+:root[data-theme="dark"] .city-zcount { background: #2c3038; }
+:root[data-theme="dark"] .bulk-bar { background: #1b2a3f; border-color: #2c456b; }
+:root[data-theme="dark"] .dropzone.over,
+:root[data-theme="dark"] .zone-row.selected { background: #1b2a3f; }
+:root[data-theme="dark"] .zone-section.unassigned .zone-row.selected { background: #36300f; }
+:root[data-theme="dark"] .reject-box,
+:root[data-theme="dark"] .error-box { background: #3a1d1a; color: #ff9b8f; border-color: #5a2a24; }
+:root[data-theme="dark"] .log-level.info { background: #14233f; color: #7ab0ff; }
+:root[data-theme="dark"] .map-loading { background: rgba(20, 22, 28, 0.72); }
+:root[data-theme="dark"] .map-zone-item:hover { background: var(--surface-2); }

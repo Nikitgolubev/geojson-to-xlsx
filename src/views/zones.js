@@ -251,8 +251,8 @@
       ]),
       el("div", { class: "zone-controls" }, [
         el("button", { class: "btn tiny", title: "Скачать GeoJSON", onclick: () => exportGeojson(z) }, [icon("download"), " GeoJSON"]),
-        el("button", { class: "btn tiny", title: "Скачать XLSX", onclick: () => exportXlsx(z, container) }, [icon("download"), " XLSX"]),
-        el("button", { class: "btn tiny", title: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }, [icon("map"), " На карте"]),
+        el("button", { class: "btn tiny btn-xlsx", title: "Скачать XLSX", onclick: () => exportXlsx(z, container) }, [icon("download"), " XLSX"]),
+        el("button", { class: "btn tiny btn-map", title: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }, [icon("map"), " На карте"]),
         el("button", { class: "btn tiny secondary icon-only", title: "Редактировать", onclick: () => editZone(z, container) }, [icon("pencil")]),
         el("button", { class: "btn tiny danger icon-only", title: "Удалить", onclick: () => deleteZone(z, container) }, [icon("trash")]),
       ]),

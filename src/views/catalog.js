@@ -99,9 +99,9 @@
           el("div", { class: "zone-num", text: `${i + 1}.` }),
           el("div", { class: "zone-info" }, [el("div", { class: "zone-name" }, [el("span", { text: z.name })])]),
           el("div", { class: "zone-controls" }, [
-            el("button", { class: "btn tiny", title: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }, [icon("map"), " На карте"]),
+            el("button", { class: "btn tiny btn-map", title: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }, [icon("map"), " На карте"]),
             el("button", { class: "btn tiny", title: "Скачать GeoJSON", onclick: () => exportZone("geojson", z) }, [icon("download"), " GeoJSON"]),
-            el("button", { class: "btn tiny", title: "Скачать XLSX", onclick: () => exportZone("xlsx", z) }, [icon("download"), " XLSX"]),
+            el("button", { class: "btn tiny btn-xlsx", title: "Скачать XLSX", onclick: () => exportZone("xlsx", z) }, [icon("download"), " XLSX"]),
           ]),
         ])
       );

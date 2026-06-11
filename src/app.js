@@ -269,13 +269,45 @@ window.App = (function () {
     });
   }
 
+  // ---------- темы (светлая/тёмная) ----------
+  function getTheme() {
+    try {
+      return localStorage.getItem("theme") === "dark" ? "dark" : "light";
+    } catch (_) {
+      return "light";
+    }
+  }
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t === "dark" ? "dark" : "light";
+    const btn = document.getElementById("themeToggle");
+    if (btn) {
+      btn.textContent = t === "dark" ? "☀" : "🌙";
+      btn.title = t === "dark" ? "Светлая тема" : "Тёмная тема";
+    }
+  }
+  function setTheme(t) {
+    const v = t === "dark" ? "dark" : "light";
+    try {
+      localStorage.setItem("theme", v);
+    } catch (_) {}
+    applyTheme(v);
+  }
+  function toggleTheme() {
+    setTheme(getTheme() === "dark" ? "light" : "dark");
+  }
+
   function init() {
+    applyTheme(getTheme()); // применяем сохранённую тему до отрисовки
+    const tt = document.getElementById("themeToggle");
+    if (tt) tt.addEventListener("click", () => toggleTheme());
+
     document.querySelectorAll(".nav-item").forEach((btn) => {
       btn.addEventListener("click", () => navigate(btn.dataset.view));
     });
     // События из верхнего меню и при изменении данных (импорт резервной копии).
     if (window.api && window.api.on) {
       window.api.on("menu:help", () => showHelp());
+      window.api.on("menu:set-theme", (v) => setTheme(v));
       window.api.on("data:changed", () => {
         if (current) navigate(current);
       });
@@ -298,6 +330,9 @@ window.App = (function () {
     prompt,
     refreshUnassignedBadge,
     showHelp,
+    setTheme,
+    toggleTheme,
+    getTheme,
     get current() {
       return current;
     },

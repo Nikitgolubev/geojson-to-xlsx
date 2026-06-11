@@ -22,6 +22,14 @@ function buildAppMenu(actions) {
     {
       label: "Вид",
       submenu: [
+        {
+          label: "Тема",
+          submenu: [
+            { label: "Светлая", click: () => a.onSetTheme && a.onSetTheme("light") },
+            { label: "Тёмная", click: () => a.onSetTheme && a.onSetTheme("dark") },
+          ],
+        },
+        { type: "separator" },
         { role: "reload", label: "Обновить" },
         { role: "toggleDevTools", label: "Инструменты разработчика" },
         { type: "separator" },

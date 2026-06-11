@@ -8,7 +8,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 
 // События main→renderer разрешены только из белого списка каналов.
-const ALLOWED_EVENTS = new Set(["menu:help", "data:changed"]);
+const ALLOWED_EVENTS = new Set(["menu:help", "data:changed", "menu:set-theme"]);
 
 contextBridge.exposeInMainWorld("api", {
   cities: {
