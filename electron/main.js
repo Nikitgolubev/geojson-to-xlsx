@@ -20,7 +20,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: "GeoJSON Zones",
+    title: "polygons",
     backgroundColor: "#f5f5f7",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -230,7 +230,13 @@ async function importBackup() {
 
 app.whenReady().then(() => {
   // Тестовый режим: изолированная БД во временной папке (не трогаем данные пользователя).
-  if (process.env.GZ_TESTDIR) app.setPath("userData", process.env.GZ_TESTDIR);
+  if (process.env.GZ_TESTDIR) {
+    app.setPath("userData", process.env.GZ_TESTDIR);
+  } else {
+    // Имя приложения сменилось на «polygons», но папку данных закрепляем за прежним
+    // именем, чтобы города/зоны существующих пользователей не «потерялись».
+    app.setPath("userData", path.join(app.getPath("appData"), "GeoJSON Zones"));
+  }
   db.init(app.getPath("userData"));
   registerIpc();
   createWindow();
