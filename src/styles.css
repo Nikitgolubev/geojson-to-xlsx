@@ -317,3 +317,9 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
 /* ===== Модалка редактирования (label + поля) ===== */
 .modal-label { display: block; font-weight: 600; font-size: 0.85rem; margin: 10px 0 4px; }
 .modal-label:first-child { margin-top: 0; }
+
+/* ===== Города: сводка раскрываемого узла + список зон ===== */
+.city-summary .city-sub { color: var(--text-muted); font-size: 0.8rem; font-weight: 400; }
+.city-summary .summary-actions { display: inline-flex; gap: 6px; }
+.city-zones { padding: 2px 12px 12px 30px; }
+.city-zones .zone-row { border-top: 1px solid var(--border); }

@@ -4,14 +4,27 @@
 // Удаление города не удаляет зоны — они открепляются (см. db.js, ON DELETE SET NULL).
 (function () {
   const App = window.App;
-  const { el, formatDate, toast, confirm, prompt } = App;
+  const { el, icon, formatDate, toast, confirm, prompt } = App;
 
   async function show(container) {
     const actions = document.getElementById("viewActions");
     actions.appendChild(
       el("button", { class: "btn primary", text: "+ Добавить город", onclick: () => addCity(container) })
     );
+    actions.appendChild(
+      el("button", { class: "btn small secondary", text: "Раскрыть все", onclick: () => toggleAll(true) })
+    );
+    actions.appendChild(
+      el("button", { class: "btn small secondary", text: "Свернуть все", onclick: () => toggleAll(false) })
+    );
     await render(container);
+  }
+
+  // Раскрыть/свернуть все города (ленивая подгрузка зон сработает по событию toggle).
+  function toggleAll(open) {
+    document.querySelectorAll(".view-body .city-node").forEach((d) => {
+      d.open = open;
+    });
   }
 
   async function render(container) {
@@ -28,31 +41,82 @@
     container.appendChild(list);
   }
 
+  // Город — раскрываемый узел (свёрнут по умолчанию). Список зон грузится лениво
+  // при первом раскрытии (чтобы не тянуть зоны всех городов сразу).
   function cityCard(c, container, index) {
-    return el("div", { class: "card" }, [
-      el("div", { class: "card-main" }, [
-        el("div", { class: "card-title" }, [
-          el("span", { class: "card-num", text: `${index}. ` }),
-          el("span", { text: c.name }),
-        ]),
-        el("div", {
-          class: "card-sub",
-          text: `Зон: ${c.zone_count} · создан ${formatDate(c.created_at)}`,
-        }),
+    const details = el("details", { class: "city-node" });
+    const summary = el("summary", { class: "city-summary" }, [
+      el("span", { class: "city-name" }, [
+        el("span", { class: "card-num", text: `${index}. ` }),
+        el("span", { text: c.name }),
       ]),
-      el("div", { class: "card-actions" }, [
-        el("button", {
-          class: "btn small secondary",
-          text: "Переименовать",
-          onclick: () => renameCity(c, container),
-        }),
-        el("button", {
-          class: "btn small danger",
-          text: "Удалить",
-          onclick: () => deleteCity(c, container),
-        }),
+      el("span", { class: "city-zcount", text: `${c.zone_count}` }),
+      el("span", { class: "city-sub", text: `создан ${formatDate(c.created_at)}` }),
+      el("span", { class: "summary-actions" }, [
+        btnStop("Переименовать", "btn small secondary", () => renameCity(c, container)),
+        btnStop("Удалить", "btn small danger", () => deleteCity(c, container)),
       ]),
     ]);
+    details.appendChild(summary);
+
+    const body = el("div", { class: "city-zones" });
+    details.appendChild(body);
+
+    let loaded = false;
+    details.addEventListener("toggle", async () => {
+      if (details.open && !loaded) {
+        loaded = true;
+        await loadCityZones(c, body);
+      }
+    });
+    return details;
+  }
+
+  // Кнопка в summary, не сворачивающая узел при клике.
+  function btnStop(text, cls, fn) {
+    return el("button", {
+      class: cls,
+      text,
+      onclick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fn();
+      },
+    });
+  }
+
+  // Ленивая загрузка зон города: просмотр на карте + скачивание GeoJSON/XLSX.
+  async function loadCityZones(c, body) {
+    body.innerHTML = "";
+    const zones = await window.api.zones.listByCity(c.id);
+    if (!zones.length) {
+      body.appendChild(el("div", { class: "empty small", text: "В этом городе нет зон." }));
+      return;
+    }
+    zones.forEach((z, i) => {
+      body.appendChild(
+        el("div", { class: "zone-row" }, [
+          el("div", { class: "zone-num", text: `${i + 1}.` }),
+          el("div", { class: "zone-info" }, [el("div", { class: "zone-name" }, [el("span", { text: z.name })])]),
+          el("div", { class: "zone-controls" }, [
+            el("button", { class: "btn tiny", title: "На карте", onclick: () => App.navigate("map", { zoneId: z.id }) }, [icon("map"), " На карте"]),
+            el("button", { class: "btn tiny", title: "Скачать GeoJSON", onclick: () => exportZone("geojson", z) }, [icon("download"), " GeoJSON"]),
+            el("button", { class: "btn tiny", title: "Скачать XLSX", onclick: () => exportZone("xlsx", z) }, [icon("download"), " XLSX"]),
+          ]),
+        ])
+      );
+    });
+  }
+
+  async function exportZone(fmt, z) {
+    try {
+      const res = fmt === "xlsx"
+        ? await window.api.zones.exportXlsx(z.id)
+        : await window.api.zones.exportGeojson(z.id);
+      if (!res.canceled) toast(fmt === "xlsx" ? "XLSX сохранён" : "GeoJSON сохранён", "ok");
+    } catch (err) {
+      toast(errText(err, "Ошибка экспорта"), "error");
+    }
   }
 
   async function addCity(container) {
