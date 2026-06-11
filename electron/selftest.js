@@ -92,10 +92,25 @@ const MAPTEST_JS = `(async function(){
   btnClear.click();
   await sleep(250);
   const afterClear = document.querySelectorAll(".map-wrap .leaflet-overlay-pane path").length;
+  // Глобальный поиск (город не выбран) + авто-город при выборе зоны.
+  const clearF = Array.prototype.find.call(document.querySelectorAll(".map-actions .btn"), function(b){ return b.textContent === "Очистить фильтры"; });
+  clearF.click();
+  await sleep(150);
+  const csel = document.querySelector(".map-select");
+  const searchEl = document.querySelector(".map-bar .search-input");
+  searchEl.value = "Z1";
+  searchEl.dispatchEvent(new Event("input"));
+  await sleep(200);
+  const globalCount = document.querySelectorAll(".map-zonelist input.zone-check").length;
+  document.querySelector(".map-zonelist input.zone-check").click();
+  await sleep(250);
+  const autoCity = csel.value;
   if (checks !== 2) throw new Error("чек-лист: ожидалось 2, получено " + checks);
   if (drawn < 2) throw new Error("слоёв на карте: ожидалось >=2, получено " + drawn);
   if (afterClear !== 0) throw new Error("после очистки слои остались: " + afterClear);
-  return "OK ✔ checklist=" + checks + " drawn=" + drawn + " afterClear=" + afterClear;
+  if (globalCount < 1) throw new Error("глобальный поиск не дал результатов");
+  if (autoCity !== String(city.id)) throw new Error("авто-город не выставился: " + autoCity);
+  return "OK ✔ checklist=" + checks + " drawn=" + drawn + " afterClear=" + afterClear + " global=" + globalCount + " autoCity=" + autoCity;
 })()`;
 
 function isEnabled() {

@@ -10,12 +10,22 @@
   let map = null;
   let layers = []; // отрисованные слои Leaflet
   let cityZones = []; // зоны выбранного города (элементы списка)
+  let allZones = []; // все зоны с городом — для глобального поиска
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   async function show(container, payload) {
     const cities = await window.api.cities.list();
-    const hasUnassigned = (await window.api.zones.countUnassigned()) > 0;
+    const unassigned = await window.api.zones.listUnassigned();
+    const hasUnassigned = unassigned.length > 0;
+
+    // Плоский список ВСЕХ зон с городом — для глобального поиска (город не выбран).
+    allZones = [];
+    unassigned.forEach((z) => allZones.push({ id: z.id, name: z.name, cityId: null, cityName: "Без города" }));
+    for (const c of cities) {
+      const zs = await window.api.zones.listByCity(c.id);
+      zs.forEach((z) => allZones.push({ id: z.id, name: z.name, cityId: c.id, cityName: c.name }));
+    }
 
     // --- выбор города ---
     const citySel = el("select", { class: "map-select" });
@@ -23,11 +33,11 @@
     if (hasUnassigned) citySel.appendChild(el("option", { value: "u", text: "Без города" }));
     cities.forEach((c) => citySel.appendChild(el("option", { value: String(c.id), text: c.name })));
 
-    // --- поиск (фильтрует список зон выбранного города) ---
+    // --- поиск: по всем зонам, пока город не выбран; иначе в пределах города ---
     const search = el("input", {
       type: "search",
       class: "search-input",
-      placeholder: "Поиск зоны…",
+      placeholder: "Поиск зоны (по всем или в городе)…",
       oninput: () => renderChecklist(search.value),
     });
 
@@ -39,22 +49,50 @@
       renderChecklist("");
     });
 
+    // Элемент чек-листа. В глобальном режиме (город не выбран) выбор зоны
+    // авто-ограничивает город этой зоны и переключает список на него.
+    function makeZoneItem(z, showCity) {
+      const cb = el("input", { type: "checkbox", class: "zone-check", value: String(z.id) });
+      if (!citySel.value) {
+        cb.addEventListener("change", async () => {
+          if (!cb.checked) return;
+          citySel.value = z.cityId == null ? "u" : String(z.cityId);
+          cityZones = await fetchCityZones(citySel.value);
+          search.value = "";
+          renderChecklist("");
+          const nc = listEl.querySelector('input.zone-check[value="' + z.id + '"]');
+          if (nc) nc.checked = true;
+        });
+      }
+      const parts = [cb, el("span", { class: "mz-name", text: z.name })];
+      if (showCity) parts.push(el("span", { class: "mz-city", text: z.cityName }));
+      return el("label", { class: "map-zone-item" }, parts);
+    }
+
     function renderChecklist(query) {
       listEl.innerHTML = "";
-      if (!citySel.value) {
-        listEl.appendChild(el("div", { class: "empty small", text: "Выберите город, чтобы увидеть его зоны." }));
-        return;
-      }
       const q = (query || "").trim().toLowerCase();
-      const filtered = q ? cityZones.filter((z) => String(z.name || "").toLowerCase().includes(q)) : cityZones;
-      if (!filtered.length) {
-        listEl.appendChild(el("div", { class: "empty small", text: q ? "Ничего не найдено." : "В этом городе нет зон." }));
-        return;
+      if (citySel.value) {
+        // В пределах выбранного города.
+        const src = q ? cityZones.filter((z) => String(z.name || "").toLowerCase().includes(q)) : cityZones;
+        if (!src.length) {
+          listEl.appendChild(el("div", { class: "empty small", text: q ? "Ничего не найдено." : "В этом городе нет зон." }));
+          return;
+        }
+        src.forEach((z) => listEl.appendChild(makeZoneItem(z, false)));
+      } else {
+        // Город не выбран — поиск по ВСЕМ зонам.
+        if (!q) {
+          listEl.appendChild(el("div", { class: "empty small", text: "Выберите город или начните поиск по всем зонам." }));
+          return;
+        }
+        const src = allZones.filter((z) => z.name.toLowerCase().includes(q));
+        if (!src.length) {
+          listEl.appendChild(el("div", { class: "empty small", text: "Ничего не найдено." }));
+          return;
+        }
+        src.forEach((z) => listEl.appendChild(makeZoneItem(z, true)));
       }
-      filtered.forEach((z) => {
-        const cb = el("input", { type: "checkbox", class: "zone-check", value: String(z.id) });
-        listEl.appendChild(el("label", { class: "map-zone-item" }, [cb, el("span", { text: z.name })]));
-      });
     }
 
     function checkedIds() {
@@ -64,6 +102,7 @@
     // --- кнопки управления ---
     const btnShow = el("button", { class: "btn small primary", text: "Показать выбранные", onclick: () => loadZones(checkedIds()) });
     const btnAll = el("button", { class: "btn small secondary", text: "Все зоны города", onclick: () => {
+      if (!citySel.value) { toast("Сначала выберите город", "info"); return; }
       listEl.querySelectorAll("input.zone-check").forEach((c) => (c.checked = true));
       loadZones(cityZones.map((z) => z.id));
     } });
@@ -71,13 +110,20 @@
       clearLayers();
       listEl.querySelectorAll("input.zone-check").forEach((c) => (c.checked = false));
     } });
+    // Сброс фильтров (город + поиск) — не путать с «Очистить отображение» (снимает слои).
+    const btnClearFilters = el("button", { class: "btn small secondary", text: "Очистить фильтры", onclick: () => {
+      citySel.value = "";
+      cityZones = [];
+      search.value = "";
+      renderChecklist("");
+    } });
 
     const bar = el("div", { class: "map-bar" }, [
       el("span", { class: "map-bar-label", text: "Город:" }),
       citySel,
       search,
     ]);
-    const actionsBar = el("div", { class: "map-actions" }, [btnShow, btnAll, btnClear]);
+    const actionsBar = el("div", { class: "map-actions" }, [btnShow, btnAll, btnClear, btnClearFilters]);
 
     const mapEl = el("div", { class: "map-canvas", id: "mapCanvas" });
     const loader = el("div", { class: "map-loading", hidden: "" }, [
