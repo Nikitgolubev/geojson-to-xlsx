@@ -191,9 +191,32 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
 .map-bar-label { color: var(--text-muted); font-size: 0.9rem; }
 .map-select { max-width: 320px; }
 .map-canvas {
-  height: calc(100vh - 200px); min-height: 360px; border-radius: var(--radius);
+  height: calc(100vh - 320px); min-height: 320px; border-radius: var(--radius);
   border: 1px solid var(--border); overflow: hidden; box-shadow: var(--shadow-sm);
 }
+
+/* ===== v0.3.0: список зон, действия, лоадер ===== */
+.map-zonelist {
+  max-width: 980px; max-height: 170px; overflow-y: auto; margin-bottom: 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; background: var(--surface);
+}
+.map-zone-item { display: flex; align-items: center; gap: 8px; padding: 4px 2px; cursor: pointer; }
+.map-zone-item:hover { background: var(--bg); border-radius: 6px; }
+.map-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.map-wrap { position: relative; }
+.map-loading {
+  position: absolute; inset: 0; z-index: 500; border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(255, 255, 255, 0.72); font-weight: 600; color: var(--text);
+}
+/* Атрибут hidden должен скрывать оверлей: перебиваем display:flex. */
+.map-loading[hidden] { display: none; }
+.spinner {
+  width: 26px; height: 26px; border: 3px solid #cfe0ff; border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== Журнал ===== */
 .log-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; max-width: 1100px; }

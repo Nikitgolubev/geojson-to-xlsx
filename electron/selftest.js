@@ -68,8 +68,38 @@ const BADGETEST_JS = `(async function(){
   return "OK ✔ (бейдж скрывается при нуле; было " + badgeBefore + ")";
 })()`;
 
+// Проверка вкладки «Карта»: выбор города → чек-лист зон → «Все зоны города» рисует
+// несколько слоёв → «Очистить отображение» снимает их.
+const MAPTEST_JS = `(async function(){
+  const api = window.api;
+  const sleep = (ms) => new Promise(function(r){ setTimeout(r, ms); });
+  const poly = JSON.stringify({ type:"Polygon", coordinates:[[[37.6,55.7],[37.7,55.7],[37.7,55.8],[37.6,55.7]]] });
+  const city = await api.cities.create("МК");
+  await api.zones.create({ name:"Z1", geojson: poly, cityId: city.id, pointCount: 3 });
+  await api.zones.create({ name:"Z2", geojson: poly, cityId: city.id, pointCount: 3 });
+  await window.App.navigate("map");
+  await sleep(400);
+  const sel = document.querySelector(".map-select");
+  sel.value = String(city.id);
+  sel.dispatchEvent(new Event("change"));
+  await sleep(350);
+  const checks = document.querySelectorAll(".map-zonelist input.zone-check").length;
+  const btnAll = Array.prototype.find.call(document.querySelectorAll(".map-actions .btn"), function(b){ return b.textContent === "Все зоны города"; });
+  btnAll.click();
+  await sleep(700);
+  const drawn = document.querySelectorAll(".map-wrap .leaflet-overlay-pane path").length;
+  const btnClear = Array.prototype.find.call(document.querySelectorAll(".map-actions .btn"), function(b){ return b.textContent === "Очистить отображение"; });
+  btnClear.click();
+  await sleep(250);
+  const afterClear = document.querySelectorAll(".map-wrap .leaflet-overlay-pane path").length;
+  if (checks !== 2) throw new Error("чек-лист: ожидалось 2, получено " + checks);
+  if (drawn < 2) throw new Error("слоёв на карте: ожидалось >=2, получено " + drawn);
+  if (afterClear !== 0) throw new Error("после очистки слои остались: " + afterClear);
+  return "OK ✔ checklist=" + checks + " drawn=" + drawn + " afterClear=" + afterClear;
+})()`;
+
 function isEnabled() {
-  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST);
+  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST);
 }
 
 // Навешивает отладочные хуки на окно. app нужен для app.exit().
@@ -81,7 +111,9 @@ function attach(mainWindow, app) {
     wc.on("did-fail-load", (_e, code, desc) => console.log("[did-fail-load]", code, desc));
   }
 
-  const mode = process.env.GZ_BADGETEST
+  const mode = process.env.GZ_MAPTEST
+    ? { label: "MAPTEST", js: MAPTEST_JS, delay: 1500 }
+    : process.env.GZ_BADGETEST
     ? { label: "BADGETEST", js: BADGETEST_JS, delay: 1500 }
     : process.env.GZ_FUNCTEST
     ? { label: "FUNCTEST", js: FUNCTEST_JS, delay: 1500 }
