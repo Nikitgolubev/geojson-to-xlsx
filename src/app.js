@@ -360,8 +360,43 @@ window.App = (function () {
     setTheme(getTheme() === "dark" ? "light" : "dark");
   }
 
+  // ---------- ширина сайдбара (перетаскивание) ----------
+  const SIDEBAR_MIN = 160, SIDEBAR_MAX = 460;
+  let lastSidebarW = null;
+  function applySidebarWidth(px) {
+    const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.round(px)));
+    document.documentElement.style.setProperty("--sidebar-w", w + "px");
+    lastSidebarW = w;
+  }
+  function setupSidebarResize() {
+    const resizer = document.getElementById("sidebarResizer");
+    if (!resizer) return;
+    const saved = parseInt(localStorage.getItem("sidebarW") || "", 10);
+    if (Number.isFinite(saved)) applySidebarWidth(saved);
+    let dragging = false;
+    resizer.addEventListener("mousedown", (e) => {
+      dragging = true;
+      resizer.classList.add("dragging");
+      document.body.classList.add("resizing");
+      e.preventDefault();
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (dragging) applySidebarWidth(e.clientX);
+    });
+    window.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      resizer.classList.remove("dragging");
+      document.body.classList.remove("resizing");
+      if (lastSidebarW != null) {
+        try { localStorage.setItem("sidebarW", String(lastSidebarW)); } catch (_) {}
+      }
+    });
+  }
+
   function init() {
     applyTheme(getTheme()); // применяем сохранённую тему до отрисовки
+    setupSidebarResize();
     const tt = document.getElementById("themeToggle");
     if (tt) tt.addEventListener("click", () => toggleTheme());
 
