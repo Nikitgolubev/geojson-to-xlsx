@@ -248,3 +248,59 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
 .toast.ok { background: #1e7a3e; }
 .toast.error { background: #b3261e; }
 .toast.info { background: #2b2f3a; }
+
+/* ===== v0.2.0: бейдж в навигации ===== */
+.nav-item { position: relative; }
+.nav-badge {
+  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--warning-bg); color: var(--warning-text);
+  border: 1px solid var(--warning-border); border-radius: 999px;
+  font-size: 0.72rem; font-weight: 700;
+}
+.nav-item.active .nav-badge { background: #fff; color: var(--accent); border-color: #fff; }
+
+/* ===== Поля поиска ===== */
+.search-input {
+  font-family: inherit; font-size: 0.9rem; padding: 7px 12px;
+  border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--text);
+  min-width: 240px;
+}
+.search-input:focus { outline: none; border-color: var(--accent); }
+.map-search { min-width: 220px; }
+
+/* ===== Панель массовых действий ===== */
+.bulk-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  max-width: 980px; margin-bottom: 14px; padding: 10px 14px;
+  background: #eef5ff; border: 1px solid #cfe0ff; border-radius: var(--radius);
+}
+.bulk-count { font-weight: 600; margin-right: 4px; }
+
+/* ===== Чекбоксы выбора зон / нумерация ===== */
+.zone-check, .group-check { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+.group-check { margin-right: 4px; }
+.zone-num { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 26px; font-size: 0.85rem; }
+.zone-row.selected { background: #eef5ff; border-radius: var(--radius-sm); }
+.zone-section.unassigned .zone-row.selected { background: #fff7e6; }
+.card-num { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ===== Сообщение об отклонённых файлах ===== */
+.reject-box {
+  position: relative; max-width: 980px; margin-bottom: 16px; padding: 12px 16px;
+  background: #fdecea; border: 1px solid #f3b4ae; border-radius: var(--radius); color: #8a2018;
+}
+.reject-title { font-weight: 700; margin-bottom: 4px; }
+.reject-list { margin: 4px 0 6px; padding-left: 20px; font-size: 0.86rem; }
+.reject-hint { font-size: 0.8rem; color: #a85148; }
+.reject-close {
+  position: absolute; top: 8px; right: 10px; background: transparent; border: none;
+  color: #8a2018; font-size: 1rem; cursor: pointer; padding: 2px 6px; border-radius: 6px;
+}
+.reject-close:hover { background: rgba(0,0,0,0.06); }
+
+/* ===== Help-модалка ===== */
+.help-body { font-size: 0.9rem; line-height: 1.5; max-height: 60vh; overflow: auto; }
+.help-body ul { margin: 6px 0 12px; padding-left: 20px; }
+.help-body li { margin-bottom: 5px; }
+.help-body p { margin: 8px 0; }

@@ -187,13 +187,72 @@ window.App = (function () {
     } catch (err) {
       body.appendChild(el("div", { class: "error-box", text: "Ошибка: " + (err && err.message ? err.message : err) }));
     }
+    refreshUnassignedBadge();
+  }
+
+  // Счётчик зон «без города» у пункта «Зоны» в навигации.
+  async function refreshUnassignedBadge() {
+    const badge = document.getElementById("zonesBadge");
+    if (!badge) return;
+    try {
+      const n = await window.api.zones.countUnassigned();
+      if (n > 0) {
+        badge.textContent = String(n);
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    } catch (_) {
+      badge.hidden = true;
+    }
+  }
+
+  // Окно «О программе» (вызывается из верхнего меню Помощь).
+  function showHelp() {
+    const body = el("div", { class: "help-body" });
+    body.innerHTML = `
+      <p><strong>GeoJSON Zones</strong> — программа для хранения и систематизации
+      <em>зон</em> (полигонов GeoJSON), сгруппированных по городам. Зоны используются
+      для расчёта стоимости перевозки и проверки входимости адреса в зону.</p>
+      <p><strong>Разделы (левое меню):</strong></p>
+      <ul>
+        <li><b>Зоны</b> — загрузка .geojson (перетаскиванием или кнопкой), список
+          город→зоны, секция «не выбран город», поиск, множественный выбор и массовые
+          операции, скачивание GeoJSON/XLSX, переименование, удаление.</li>
+        <li><b>Города</b> — справочник городов: добавление, переименование, удаление
+          (зоны при этом не удаляются, а открепляются).</li>
+        <li><b>Карта</b> — отображение полигона выбранной зоны на карте (поиск по названию).</li>
+        <li><b>Журнал</b> — история действий в программе.</li>
+      </ul>
+      <p><strong>Верхнее меню:</strong></p>
+      <ul>
+        <li><b>Файл → Экспортировать все данные в папки</b> — выгрузка всех зон в папки
+          по городам (подпапки <i>Город_geojson</i> и <i>Город_xlsx</i>).</li>
+        <li><b>Файл → Сохранить / Загрузить резервную копию</b> — перенос всех данных
+          (города и зоны) в другой компьютер или копию программы.</li>
+      </ul>
+      <p><b>Важно:</b> переименование города или зоны в программе не меняет содержимое
+      исходных файлов GeoJSON.</p>`;
+    modal({
+      title: "О программе",
+      bodyNode: body,
+      actions: [{ label: "Закрыть", value: true, kind: "primary" }],
+    });
   }
 
   function init() {
     document.querySelectorAll(".nav-item").forEach((btn) => {
       btn.addEventListener("click", () => navigate(btn.dataset.view));
     });
-    navigate("catalog");
+    // События из верхнего меню и при изменении данных (импорт резервной копии).
+    if (window.api && window.api.on) {
+      window.api.on("menu:help", () => showHelp());
+      window.api.on("data:changed", () => {
+        if (current) navigate(current);
+      });
+    }
+    navigate("zones");
+    refreshUnassignedBadge();
   }
 
   return {
@@ -207,6 +266,8 @@ window.App = (function () {
     modal,
     confirm,
     prompt,
+    refreshUnassignedBadge,
+    showHelp,
     get current() {
       return current;
     },

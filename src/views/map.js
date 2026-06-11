@@ -21,18 +21,40 @@
     }
 
     const select = el("select", { class: "map-select" });
-    select.appendChild(el("option", { value: "", text: "— выберите зону —" }));
-    groups.forEach((g) => {
-      const og = el("optgroup", { label: g.label });
-      g.zones.forEach((z) => og.appendChild(el("option", { value: String(z.id), text: z.name })));
-      select.appendChild(og);
-    });
+
+    // Заполнение выбора с учётом строки поиска (фильтр по названию зоны).
+    function populateSelect(query) {
+      const q = (query || "").trim().toLowerCase();
+      const cur = select.value;
+      select.innerHTML = "";
+      select.appendChild(el("option", { value: "", text: "— выберите зону —" }));
+      groups.forEach((g) => {
+        const matched = q
+          ? g.zones.filter((z) => String(z.name || "").toLowerCase().includes(q))
+          : g.zones;
+        if (!matched.length) return;
+        const og = el("optgroup", { label: g.label });
+        matched.forEach((z) => og.appendChild(el("option", { value: String(z.id), text: z.name })));
+        select.appendChild(og);
+      });
+      // Сохранить текущий выбор, если он ещё присутствует в списке.
+      if ([...select.options].some((o) => o.value === cur)) select.value = cur;
+    }
+    populateSelect("");
     select.addEventListener("change", () => {
       if (select.value) loadZone(Number(select.value));
     });
 
+    const search = el("input", {
+      type: "search",
+      class: "search-input map-search",
+      placeholder: "Поиск зоны…",
+      oninput: (e) => populateSelect(e.target.value),
+    });
+
     const bar = el("div", { class: "map-bar" }, [
       el("span", { class: "map-bar-label", text: "Зона:" }),
+      search,
       select,
     ]);
     const mapEl = el("div", { class: "map-canvas", id: "mapCanvas" });

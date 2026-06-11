@@ -24,14 +24,17 @@
       return;
     }
     const list = el("div", { class: "card-list" });
-    cities.forEach((c) => list.appendChild(cityCard(c, container)));
+    cities.forEach((c, i) => list.appendChild(cityCard(c, container, i + 1)));
     container.appendChild(list);
   }
 
-  function cityCard(c, container) {
+  function cityCard(c, container, index) {
     return el("div", { class: "card" }, [
       el("div", { class: "card-main" }, [
-        el("div", { class: "card-title", text: c.name }),
+        el("div", { class: "card-title" }, [
+          el("span", { class: "card-num", text: `${index}. ` }),
+          el("span", { text: c.name }),
+        ]),
         el("div", {
           class: "card-sub",
           text: `Зон: ${c.zone_count} · создан ${formatDate(c.created_at)}`,

@@ -4,9 +4,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Безопасный мост между renderer (UI) и главным процессом.
 // UI обращается к данным ТОЛЬКО через window.api — прямого доступа к Node/SQL нет.
-// Полный набор методов появляется на Этапе 1 (cities/zones/log).
 
 const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
+
+// События main→renderer разрешены только из белого списка каналов.
+const ALLOWED_EVENTS = new Set(["menu:help", "data:changed"]);
 
 contextBridge.exposeInMainWorld("api", {
   cities: {
@@ -18,19 +20,30 @@ contextBridge.exposeInMainWorld("api", {
   zones: {
     listByCity: (cityId) => invoke("zones:listByCity", cityId),
     listUnassigned: () => invoke("zones:listUnassigned"),
+    countUnassigned: () => invoke("zones:countUnassigned"),
     get: (id) => invoke("zones:get", id),
     // payload: { name, geojson, cityId?, pointCount?, sourceFilename? }
     create: (payload) => invoke("zones:create", payload),
     rename: (id, name) => invoke("zones:rename", id, name),
     assignCity: (id, cityId) => invoke("zones:assignCity", id, cityId),
+    assignCityBulk: (ids, cityId) => invoke("zones:assignCityBulk", ids, cityId),
     move: (id, newCityId) => invoke("zones:move", id, newCityId),
     delete: (id) => invoke("zones:delete", id),
+    deleteBulk: (ids) => invoke("zones:deleteBulk", ids),
     exportGeojson: (id) => invoke("zones:exportGeojson", id),
     exportXlsx: (id) => invoke("zones:exportXlsx", id),
+    exportManyToFolder: (ids, format) => invoke("zones:exportManyToFolder", ids, format),
   },
   log: {
     list: (limit) => invoke("log:list", limit),
     append: (level, message) => invoke("log:append", level, message),
     clear: () => invoke("log:clear"),
+  },
+  // Подписка на события из main (только разрешённые каналы). Возвращает отписку.
+  on: (channel, callback) => {
+    if (!ALLOWED_EVENTS.has(channel) || typeof callback !== "function") return () => {};
+    const listener = (_event, ...args) => callback(...args);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
   },
 });

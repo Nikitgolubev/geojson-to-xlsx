@@ -141,6 +141,11 @@ const zones = {
       .all();
   },
 
+  // Лёгкий счётчик зон без города (для бейджа в навигации).
+  countUnassigned() {
+    return db.prepare("SELECT COUNT(*) AS n FROM zones WHERE city_id IS NULL").get().n;
+  },
+
   // Полная запись вместе с geojson (для экспорта/карты).
   get(id) {
     return db
@@ -224,6 +229,36 @@ const zones = {
     db.prepare("UPDATE zones SET xlsx_generated_at = datetime('now') WHERE id = ?").run(id);
     return zones.get(id);
   },
+
+  // Массовое назначение/снятие города (cityId = null — открепить). Транзакционно.
+  assignCityBulk(ids, cityId) {
+    const list = Array.isArray(ids) ? ids : [];
+    if (cityId != null && !cities.get(cityId)) throw new Error("Город не найден");
+    const upd = db.prepare("UPDATE zones SET city_id = ? WHERE id = ?");
+    const tx = db.transaction((arr) => {
+      for (const id of arr) upd.run(cityId == null ? null : cityId, id);
+    });
+    tx(list);
+    appendLog(
+      "info",
+      cityId == null
+        ? `Откреплено зон от города: ${list.length}`
+        : `Назначен город #${cityId} зонам: ${list.length}`
+    );
+    return { count: list.length };
+  },
+
+  // Массовое удаление зон. Транзакционно.
+  deleteBulk(ids) {
+    const list = Array.isArray(ids) ? ids : [];
+    const del = db.prepare("DELETE FROM zones WHERE id = ?");
+    const tx = db.transaction((arr) => {
+      for (const id of arr) del.run(id);
+    });
+    tx(list);
+    appendLog("warn", `Массово удалено зон: ${list.length}`);
+    return { count: list.length };
+  },
 };
 
 // ---------- Журнал действий ----------
@@ -245,4 +280,85 @@ const log = {
   },
 };
 
-module.exports = { init, cities, zones, log, appendLog };
+// ---------- Резервная копия (все данные) ----------
+const data = {
+  // Полный снимок: города + зоны (с geojson). Город привязан по ИМЕНИ (переносимо).
+  exportAll() {
+    const allCities = db
+      .prepare("SELECT name, created_at FROM cities ORDER BY name COLLATE NOCASE")
+      .all();
+    const allZones = db
+      .prepare(
+        `SELECT z.name, c.name AS cityName, z.geojson, z.point_count,
+                z.source_filename, z.created_at, z.geojson_updated_at, z.xlsx_generated_at
+         FROM zones z LEFT JOIN cities c ON c.id = z.city_id
+         ORDER BY z.id`
+      )
+      .all();
+    return {
+      app: "geojson-zones",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      cities: allCities,
+      zones: allZones,
+    };
+  },
+
+  // Загрузка резервной копии в режиме merge: города по имени переиспользуются
+  // (создаются при отсутствии), зоны добавляются. Всё в одной транзакции.
+  importAll(payload) {
+    const p = payload || {};
+    if (p.app !== "geojson-zones") throw new Error("Файл не является резервной копией GeoJSON Zones");
+    const inCities = Array.isArray(p.cities) ? p.cities : [];
+    const inZones = Array.isArray(p.zones) ? p.zones : [];
+
+    const findCity = db.prepare("SELECT id FROM cities WHERE name = ?");
+    const insCity = db.prepare("INSERT INTO cities (name) VALUES (?)");
+    const insZone = db.prepare(
+      `INSERT INTO zones (city_id, name, geojson, point_count, source_filename,
+                          geojson_updated_at, xlsx_generated_at)
+       VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)`
+    );
+
+    let citiesAdded = 0;
+    let zonesAdded = 0;
+
+    // Город по имени: вернуть id, создав при отсутствии.
+    function ensureCity(name) {
+      const clean = String(name == null ? "" : name).trim();
+      if (!clean) return null;
+      const found = findCity.get(clean);
+      if (found) return found.id;
+      const info = insCity.run(clean);
+      citiesAdded++;
+      return info.lastInsertRowid;
+    }
+
+    const tx = db.transaction(() => {
+      // Сначала города из списка (даже пустые, без зон).
+      for (const c of inCities) ensureCity(c && c.name);
+      // Затем зоны, привязывая к городу по имени.
+      for (const z of inZones) {
+        if (!z || typeof z.geojson !== "string" || !z.geojson.length) continue;
+        const name = String(z.name == null ? "" : z.name).trim() || "zone";
+        const cityId = z.cityName == null ? null : ensureCity(z.cityName);
+        insZone.run(
+          cityId,
+          name,
+          z.geojson,
+          z.point_count == null ? null : z.point_count,
+          z.source_filename == null ? null : z.source_filename,
+          z.geojson_updated_at == null ? null : z.geojson_updated_at,
+          z.xlsx_generated_at == null ? null : z.xlsx_generated_at
+        );
+        zonesAdded++;
+      }
+    });
+    tx();
+
+    appendLog("info", `Загружена резервная копия: +${citiesAdded} городов, +${zonesAdded} зон`);
+    return { citiesAdded, zonesAdded };
+  },
+};
+
+module.exports = { init, cities, zones, log, data, appendLog };

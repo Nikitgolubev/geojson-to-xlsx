@@ -47,6 +47,34 @@ function main() {
   const logs = db.log.list(20);
   assert.ok(logs.length >= 5, "в журнале есть записи");
 
+  // --- v0.2.0: countUnassigned ---
+  assert.strictEqual(db.zones.countUnassigned(), 1, "countUnassigned = 1");
+
+  // --- v0.2.0: массовые операции ---
+  const z2 = db.zones.create({ name: "Зона B", geojson: gj, pointCount: 1 });
+  const z3 = db.zones.create({ name: "Зона C", geojson: gj, pointCount: 1 });
+  assert.strictEqual(db.zones.countUnassigned(), 3, "стало 3 без города");
+  db.zones.assignCityBulk([z2.id, z3.id], spb.id);
+  assert.strictEqual(db.zones.listByCity(spb.id).length, 2, "у СПб 2 зоны после bulk-назначения");
+  assert.strictEqual(db.zones.countUnassigned(), 1, "снова 1 без города");
+  db.zones.deleteBulk([z2.id, z3.id]);
+  assert.strictEqual(db.zones.listByCity(spb.id).length, 0, "bulk-удаление сработало");
+
+  // --- v0.2.0: backup exportAll/importAll (merge) ---
+  const snapshot = db.data.exportAll();
+  assert.ok(snapshot.app === "geojson-zones" && Array.isArray(snapshot.zones), "снимок корректен");
+  const unassignedBefore = db.zones.listUnassigned().length; // 1 (зона z)
+  // импорт в ТУ ЖЕ базу: города по имени переиспользуются (не плодятся), зоны добавляются
+  const citiesBefore = db.cities.list().length;
+  const res = db.data.importAll(snapshot);
+  assert.strictEqual(db.cities.list().length, citiesBefore, "merge: города не задублировались");
+  assert.strictEqual(res.zonesAdded, snapshot.zones.length, "merge: добавлены все зоны из снимка");
+  assert.strictEqual(
+    db.zones.listUnassigned().length,
+    unassignedBefore + snapshot.zones.length,
+    "зоны из снимка прибавились"
+  );
+
   // чистим временную БД
   fs.rmSync(tmp, { recursive: true, force: true });
 

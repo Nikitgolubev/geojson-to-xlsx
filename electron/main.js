@@ -6,6 +6,8 @@ const fs = require("fs");
 const db = require("./db");
 const selftest = require("./selftest");
 const { geojsonToXlsxBuffer } = require("./xlsx-export");
+const { buildAppMenu } = require("./menu");
+const { writeAllToFolders, writeZonesToFolder } = require("./export-folders");
 
 // Точка входа главного процесса Electron.
 // IPC-обработчики (cities/zones/log) регистрируются в registerIpc().
@@ -65,14 +67,18 @@ function registerIpc() {
   // Зоны
   handle("zones:listByCity", (cityId) => db.zones.listByCity(cityId));
   handle("zones:listUnassigned", () => db.zones.listUnassigned());
+  handle("zones:countUnassigned", () => db.zones.countUnassigned());
   handle("zones:get", (id) => db.zones.get(id));
   handle("zones:create", (payload) => db.zones.create(payload));
   handle("zones:rename", (id, name) => db.zones.rename(id, name));
   handle("zones:assignCity", (id, cityId) => db.zones.assignCity(id, cityId));
+  handle("zones:assignCityBulk", (ids, cityId) => db.zones.assignCityBulk(ids, cityId));
   handle("zones:move", (id, newCityId) => db.zones.move(id, newCityId));
   handle("zones:delete", (id) => db.zones.delete(id));
+  handle("zones:deleteBulk", (ids) => db.zones.deleteBulk(ids));
   handle("zones:exportGeojson", (id) => exportGeojson(id));
   handle("zones:exportXlsx", (id) => exportXlsx(id));
+  handle("zones:exportManyToFolder", (ids, format) => exportManyToFolder(ids, format));
 
   // Журнал действий
   handle("log:list", (limit) => db.log.list(limit));
@@ -120,12 +126,124 @@ async function exportXlsx(id) {
   return { canceled: false, filePath, count };
 }
 
+// Сообщить renderer, что данные изменились (перерисовать вкладку + счётчики).
+function notifyDataChanged() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("data:changed");
+  }
+}
+
+// Массовое «Скачать» выбранных зон в выбранную папку (geojson | xlsx).
+async function exportManyToFolder(ids, format) {
+  const list = Array.isArray(ids) ? ids : [];
+  if (!list.length) return { canceled: true };
+  const fmt = format === "xlsx" ? "xlsx" : "geojson";
+
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: "Выберите папку для сохранения",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (canceled || !filePaths || !filePaths.length) return { canceled: true };
+
+  const zones = list.map((id) => db.zones.get(id)).filter(Boolean);
+  const { count } = writeZonesToFolder(filePaths[0], zones, fmt);
+  if (fmt === "xlsx") zones.forEach((z) => db.zones.markXlsxGenerated(z.id));
+  db.appendLog("info", `Массовый экспорт ${fmt.toUpperCase()}: ${count} зон → ${filePaths[0]}`);
+  return { canceled: false, count, dir: filePaths[0] };
+}
+
+// Экспорт всех данных в структуру папок (Город/Город_geojson|_xlsx).
+async function exportAllToFolders() {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: "Выберите папку для экспорта всех данных",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (canceled || !filePaths || !filePaths.length) return { canceled: true };
+
+  const exportData = db.data.exportAll();
+  const res = writeAllToFolders(filePaths[0], exportData);
+  db.appendLog("info", `Экспорт всех данных в папки: ${res.zones} зон, ${res.files} файлов → ${filePaths[0]}`);
+  await dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Экспорт завершён",
+    message: `Экспортировано зон: ${res.zones}\nФайлов: ${res.files}\nПапка: ${filePaths[0]}`,
+  });
+  return { canceled: false, ...res };
+}
+
+// Сохранить резервную копию всех данных в один файл.
+async function exportBackup() {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Сохранить резервную копию",
+    defaultPath: "geojson-zones-backup.json",
+    filters: [{ name: "Резервная копия", extensions: ["json"] }],
+  });
+  if (canceled || !filePath) return { canceled: true };
+
+  const snapshot = db.data.exportAll();
+  fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), "utf-8");
+  db.appendLog("info", `Сохранена резервная копия (${snapshot.zones.length} зон) → ${filePath}`);
+  return { canceled: false, filePath };
+}
+
+// Загрузить резервную копию (merge) и уведомить renderer.
+async function importBackup() {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: "Загрузить резервную копию",
+    filters: [{ name: "Резервная копия", extensions: ["json"] }],
+    properties: ["openFile"],
+  });
+  if (canceled || !filePaths || !filePaths.length) return { canceled: true };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePaths[0], "utf-8"));
+  } catch (e) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "Ошибка",
+      message: "Файл не является корректным JSON.",
+    });
+    return { canceled: true, error: "parse" };
+  }
+
+  let res;
+  try {
+    res = db.data.importAll(parsed);
+  } catch (e) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "Ошибка",
+      message: e && e.message ? e.message : String(e),
+    });
+    return { canceled: true, error: "import" };
+  }
+
+  notifyDataChanged();
+  await dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Загрузка завершена",
+    message: `Добавлено городов: ${res.citiesAdded}\nДобавлено зон: ${res.zonesAdded}`,
+  });
+  return { canceled: false, ...res };
+}
+
 app.whenReady().then(() => {
   // Тестовый режим: изолированная БД во временной папке (не трогаем данные пользователя).
   if (process.env.GZ_TESTDIR) app.setPath("userData", process.env.GZ_TESTDIR);
   db.init(app.getPath("userData"));
   registerIpc();
   createWindow();
+
+  // Верхнее меню (рус.): действия с данными выполняются здесь, в main-процессе.
+  buildAppMenu({
+    onExportFolders: () => exportAllToFolders(),
+    onExportBackup: () => exportBackup(),
+    onImportBackup: () => importBackup(),
+    onHelp: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:help");
+    },
+  });
 
   // macOS: пересоздать окно при клике на иконку в доке (задел под будущую mac-версию)
   app.on("activate", () => {
