@@ -230,6 +230,36 @@ const zones = {
     return zones.get(id);
   },
 
+  // Поиск зоны по имени среди ВСЕХ зон (для проверки дубликатов при загрузке).
+  findByName(name) {
+    const clean = String(name == null ? "" : name).trim();
+    if (!clean) return null;
+    return db
+      .prepare("SELECT id, name, city_id FROM zones WHERE name = ? ORDER BY id LIMIT 1")
+      .get(clean) || null;
+  },
+
+  // Заменить содержимое существующей зоны (город и id сохраняются).
+  updateGeojson(id, payload) {
+    const p = payload || {};
+    const before = zones.get(id);
+    if (!before) throw new Error("Зона не найдена");
+    if (typeof p.geojson !== "string" || !p.geojson.length) {
+      throw new Error("Пустое содержимое GeoJSON");
+    }
+    db.prepare(
+      `UPDATE zones SET geojson = ?, point_count = ?, source_filename = ?,
+                        geojson_updated_at = datetime('now') WHERE id = ?`
+    ).run(
+      p.geojson,
+      p.pointCount == null ? null : p.pointCount,
+      p.sourceFilename == null ? null : p.sourceFilename,
+      id
+    );
+    appendLog("info", `Обновлено содержимое зоны «${before.name}» (точек: ${p.pointCount ?? "?"})`);
+    return zones.get(id);
+  },
+
   // Массовое назначение/снятие города (cityId = null — открепить). Транзакционно.
   assignCityBulk(ids, cityId) {
     const list = Array.isArray(ids) ? ids : [];

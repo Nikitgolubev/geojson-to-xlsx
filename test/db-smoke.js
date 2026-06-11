@@ -50,6 +50,16 @@ function main() {
   // --- v0.2.0: countUnassigned ---
   assert.strictEqual(db.zones.countUnassigned(), 1, "countUnassigned = 1");
 
+  // --- v0.5.0: findByName + updateGeojson (замена при дубликате) ---
+  const dup = db.zones.findByName(got.name);
+  assert.ok(dup && dup.id === z.id, "findByName находит зону по имени");
+  assert.strictEqual(db.zones.findByName("нет-такой"), null, "findByName: нет совпадения → null");
+  const newGj = '{"type":"Point","coordinates":[1,1]}';
+  db.zones.updateGeojson(z.id, { geojson: newGj, pointCount: 1 });
+  const after = db.zones.get(z.id);
+  assert.strictEqual(after.geojson, newGj, "updateGeojson заменил содержимое");
+  assert.strictEqual(after.city_id, null, "updateGeojson сохранил привязку города (null)");
+
   // --- v0.2.0: массовые операции ---
   const z2 = db.zones.create({ name: "Зона B", geojson: gj, pointCount: 1 });
   const z3 = db.zones.create({ name: "Зона C", geojson: gj, pointCount: 1 });

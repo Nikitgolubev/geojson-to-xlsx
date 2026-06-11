@@ -71,6 +71,8 @@ function registerIpc() {
   handle("zones:countUnassigned", () => db.zones.countUnassigned());
   handle("zones:get", (id) => db.zones.get(id));
   handle("zones:create", (payload) => db.zones.create(payload));
+  handle("zones:findByName", (name) => db.zones.findByName(name));
+  handle("zones:updateGeojson", (id, payload) => db.zones.updateGeojson(id, payload));
   handle("zones:rename", (id, name) => db.zones.rename(id, name));
   handle("zones:assignCity", (id, cityId) => db.zones.assignCity(id, cityId));
   handle("zones:assignCityBulk", (ids, cityId) => db.zones.assignCityBulk(ids, cityId));

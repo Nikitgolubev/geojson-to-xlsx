@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("api", {
     get: (id) => invoke("zones:get", id),
     // payload: { name, geojson, cityId?, pointCount?, sourceFilename? }
     create: (payload) => invoke("zones:create", payload),
+    findByName: (name) => invoke("zones:findByName", name),
+    updateGeojson: (id, payload) => invoke("zones:updateGeojson", id, payload),
     rename: (id, name) => invoke("zones:rename", id, name),
     assignCity: (id, cityId) => invoke("zones:assignCity", id, cityId),
     assignCityBulk: (ids, cityId) => invoke("zones:assignCityBulk", ids, cityId),

@@ -69,6 +69,9 @@
   }
 
   async function render(container) {
+    // Запоминаем раскрытые города, чтобы не сворачивать их при перерисовке
+    // (например, после клика по чекбоксу зоны).
+    const openIds = [...container.querySelectorAll(".city-node[open]")].map((d) => d.dataset.cityId);
     container.innerHTML = "";
     citiesCache = await window.api.cities.list();
     const filtering = !!searchQuery.trim();
@@ -110,8 +113,13 @@
       if (filtering && !zones.length) continue; // при поиске пустые города скрываем
       if (zones.length) anyShown = true;
       const ids = zones.map((z) => z.id);
-      // Свёрнуто по умолчанию; при активном поиске города с совпадениями авто-раскрываются.
-      const details = el("details", { class: "city-node", open: filtering && zones.length ? "open" : null });
+      // Свёрнуто по умолчанию; раскрыто при поиске или если было раскрыто до перерисовки.
+      const wasOpen = openIds.includes(String(city.id));
+      const details = el("details", {
+        class: "city-node",
+        dataset: { cityId: String(city.id) },
+        open: (filtering && zones.length) || wasOpen ? "open" : null,
+      });
       const summary = el("summary", { class: "city-summary" }, [
         groupSelectAll(ids, container),
         el("span", { class: "city-name", text: city.name }),
@@ -361,11 +369,31 @@
     return box;
   }
 
+  // Диалог при конфликте имени зоны. Возвращает {action, applyAll}.
+  async function askConflict(name) {
+    const applyCb = el("input", { type: "checkbox" });
+    const body = el("div", {}, [
+      el("p", { class: "modal-text", text: `Зона с именем «${name}» уже существует. Что сделать?` }),
+      el("label", { class: "modal-check" }, [applyCb, el("span", { text: " Применить ко всем последующим" })]),
+    ]);
+    const action = await modal({
+      title: "Зона уже существует",
+      bodyNode: body,
+      actions: [
+        { label: "Отменить загрузку", value: "cancel", kind: "secondary" },
+        { label: "Оставить обе", value: "create", kind: "secondary" },
+        { label: "Заменить", value: "replace", kind: "primary" },
+      ],
+    });
+    return { action: action || "cancel", applyAll: applyCb.checked };
+  }
+
   async function importFiles(fileList, container) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
     importRejected = [];
-    let ok = 0, empty = 0;
+    let ok = 0, empty = 0, replaced = 0, skipped = 0;
+    let conflictPolicy = null; // "replace" | "create" | "cancel" — «применить ко всем»
 
     for (const file of files) {
       const lower = file.name.toLowerCase();
@@ -393,17 +421,44 @@
         continue;
       }
 
-      const name = file.name.replace(/\.[^/.]+$/, "");
+      const name = file.name.replace(/\.[^/.]+$/, "") || file.name;
+
+      // Проверка уникальности имени среди всех зон.
+      const existing = await window.api.zones.findByName(name);
+      let action = "create";
+      if (existing) {
+        if (conflictPolicy) {
+          action = conflictPolicy;
+        } else {
+          const res = await askConflict(name);
+          action = res.action;
+          if (res.applyAll) conflictPolicy = res.action;
+        }
+      }
+      if (action === "cancel") {
+        skipped++;
+        continue;
+      }
+
       try {
-        await window.api.zones.create({
-          name: name || file.name,
-          geojson: text,
-          cityId: null,
-          pointCount: parsed.count,
-          sourceFilename: file.name,
-        });
-        if (parsed.count === 0) empty++;
-        else ok++;
+        if (action === "replace" && existing) {
+          await window.api.zones.updateGeojson(existing.id, {
+            geojson: text,
+            pointCount: parsed.count,
+            sourceFilename: file.name,
+          });
+          replaced++;
+        } else {
+          await window.api.zones.create({
+            name: name,
+            geojson: text,
+            cityId: null,
+            pointCount: parsed.count,
+            sourceFilename: file.name,
+          });
+          if (parsed.count === 0) empty++;
+          else ok++;
+        }
       } catch (e) {
         importRejected.push({ name: file.name, reason: errText(e, "ошибка сохранения") });
       }
@@ -411,7 +466,9 @@
 
     const parts = [];
     if (ok) parts.push(`загружено: ${ok}`);
+    if (replaced) parts.push(`заменено: ${replaced}`);
     if (empty) parts.push(`без точек: ${empty}`);
+    if (skipped) parts.push(`пропущено: ${skipped}`);
     if (importRejected.length) parts.push(`отклонено: ${importRejected.length}`);
     toast(parts.join(" · ") || "Файлы не обработаны", importRejected.length && !ok ? "error" : "ok");
     await render(container);
