@@ -10,6 +10,7 @@
     "test:db": "node scripts/test-db.js",
     "test:geojson": "node test/geojson-smoke.js",
     "test:folders": "node test/export-folders-smoke.js",
+    "test:bugreport": "node test/bugreport-smoke.js",
     "test:badge": "node scripts/test-badge.js",
     "test:map": "node scripts/test-map.js",
     "make:icon": "node scripts/make-icon-run.js",

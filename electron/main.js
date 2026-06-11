@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const db = require("./db");
@@ -8,6 +8,7 @@ const selftest = require("./selftest");
 const { geojsonToXlsxBuffer } = require("./xlsx-export");
 const { buildAppMenu } = require("./menu");
 const { writeAllToFolders, writeZonesToFolder } = require("./export-folders");
+const { buildEml } = require("./bug-report");
 
 // Точка входа главного процесса Electron.
 // IPC-обработчики (cities/zones/log) регистрируются в registerIpc().
@@ -84,6 +85,53 @@ function registerIpc() {
   handle("log:list", (limit) => db.log.list(limit));
   handle("log:append", (level, message) => db.log.append(level, message));
   handle("log:clear", () => db.log.clear());
+
+  // Система / обратная связь
+  handle("system:openExternal", (url) => openExternal(url));
+  handle("system:pickAttachment", () => pickAttachment());
+  handle("system:sendBugReport", (payload) => sendBugReport(payload));
+}
+
+// Открыть внешнюю ссылку (только http/https/mailto).
+async function openExternal(url) {
+  const u = String(url || "");
+  if (!/^(https?:|mailto:)/i.test(u)) throw new Error("Недопустимая ссылка");
+  await shell.openExternal(u);
+  return { ok: true };
+}
+
+// Выбрать файл-вложение для письма об ошибке.
+async function pickAttachment() {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: "Выберите файл для вложения",
+    properties: ["openFile"],
+  });
+  if (canceled || !filePaths || !filePaths.length) return null;
+  const p = filePaths[0];
+  let size = 0;
+  try { size = fs.statSync(p).size; } catch (_) { /* ignore */ }
+  return { path: p, name: path.basename(p), size };
+}
+
+// Сформировать .eml (тема/текст/вложение) и открыть его в почтовом клиенте.
+async function sendBugReport(payload) {
+  const p = payload || {};
+  let attachment = null;
+  if (p.attachmentPath) {
+    const buf = fs.readFileSync(p.attachmentPath);
+    attachment = { filename: path.basename(p.attachmentPath), content: buf, mime: "application/octet-stream" };
+  }
+  const eml = buildEml({
+    to: "nikitgolubev@gmail.com",
+    subject: p.subject || "Сообщение об ошибке (polygons)",
+    body: p.body || "",
+    attachment,
+  });
+  const file = path.join(app.getPath("temp"), "polygons-bug-" + Date.now() + ".eml");
+  fs.writeFileSync(file, eml);
+  await shell.openPath(file);
+  db.appendLog("info", "Подготовлено письмо об ошибке → " + file);
+  return { ok: true, file };
 }
 
 // Экспорт исходного GeoJSON «как есть» через системный диалог сохранения.
@@ -251,6 +299,12 @@ app.whenReady().then(() => {
     },
     onSetTheme: (v) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:set-theme", v);
+    },
+    onFeedback: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:feedback");
+    },
+    onBug: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:bug");
     },
   });
 

@@ -40,7 +40,12 @@ function buildAppMenu(actions) {
     },
     {
       label: "Помощь",
-      submenu: [{ label: "О программе", click: a.onHelp }],
+      submenu: [
+        { label: "О программе", click: a.onHelp },
+        { type: "separator" },
+        { label: "Обратная связь", click: a.onFeedback },
+        { label: "Сообщить об ошибке", click: a.onBug },
+      ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

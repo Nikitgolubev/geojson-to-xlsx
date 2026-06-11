@@ -8,7 +8,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 
 // События main→renderer разрешены только из белого списка каналов.
-const ALLOWED_EVENTS = new Set(["menu:help", "data:changed", "menu:set-theme"]);
+const ALLOWED_EVENTS = new Set([
+  "menu:help", "data:changed", "menu:set-theme", "menu:feedback", "menu:bug",
+]);
 
 contextBridge.exposeInMainWorld("api", {
   cities: {
@@ -38,6 +40,11 @@ contextBridge.exposeInMainWorld("api", {
     list: (limit) => invoke("log:list", limit),
     append: (level, message) => invoke("log:append", level, message),
     clear: () => invoke("log:clear"),
+  },
+  system: {
+    openExternal: (url) => invoke("system:openExternal", url),
+    pickAttachment: () => invoke("system:pickAttachment"),
+    sendBugReport: (payload) => invoke("system:sendBugReport", payload),
   },
   // Подписка на события из main (только разрешённые каналы). Возвращает отписку.
   on: (channel, callback) => {

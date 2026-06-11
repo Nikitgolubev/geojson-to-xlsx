@@ -240,7 +240,7 @@ window.App = (function () {
   function showHelp() {
     const body = el("div", { class: "help-body" });
     body.innerHTML = `
-      <p><strong>GeoJSON Zones</strong> — программа для хранения и систематизации
+      <p><strong>polygons</strong> — программа для хранения и систематизации
       <em>зон</em> (полигонов GeoJSON), сгруппированных по городам. Зоны используются
       для расчёта стоимости перевозки и проверки входимости адреса в зону.</p>
       <p><strong>Разделы (левое меню):</strong></p>
@@ -259,6 +259,10 @@ window.App = (function () {
           по городам (подпапки <i>Город_geojson</i> и <i>Город_xlsx</i>).</li>
         <li><b>Файл → Сохранить / Загрузить резервную копию</b> — перенос всех данных
           (города и зоны) в другой компьютер или копию программы.</li>
+        <li><b>Вид → Тема</b> — переключение светлой и тёмной темы (также кнопкой
+          у версии в левом нижнем углу).</li>
+        <li><b>Помощь → Обратная связь / Сообщить об ошибке</b> — контакты и форма
+          письма с вложением.</li>
       </ul>
       <p><b>Важно:</b> переименование города или зоны в программе не меняет содержимое
       исходных файлов GeoJSON.</p>`;
@@ -267,6 +271,66 @@ window.App = (function () {
       bodyNode: body,
       actions: [{ label: "Закрыть", value: true, kind: "primary" }],
     });
+  }
+
+  // Обратная связь: ссылка на репозиторий + почта (открываются во внешних приложениях).
+  function showFeedback() {
+    const repo = "https://github.com/Nikitgolubev/geojson-to-xlsx";
+    const email = "nikitgolubev@gmail.com";
+    const open = (url) => {
+      if (window.api && window.api.system) window.api.system.openExternal(url);
+    };
+    const linkGh = el("a", { href: "#", text: repo, onclick: (e) => { e.preventDefault(); open(repo); } });
+    const linkMail = el("a", { href: "#", text: email, onclick: (e) => { e.preventDefault(); open("mailto:" + email); } });
+    const body = el("div", { class: "help-body" }, [
+      el("p", {}, ["Репозиторий проекта на GitHub:"]),
+      el("p", {}, [linkGh]),
+      el("p", {}, ["Почта для связи:"]),
+      el("p", {}, [linkMail]),
+    ]);
+    modal({ title: "Обратная связь", bodyNode: body, actions: [{ label: "Закрыть", value: true, kind: "primary" }] });
+  }
+
+  // Сообщить об ошибке: тема/текст/вложение → формируется .eml и открывается в почте.
+  async function showBugReport() {
+    const subject = el("input", { class: "modal-input", type: "text", placeholder: "Кратко о проблеме" });
+    const text = el("textarea", { class: "modal-input", rows: "6", placeholder: "Опишите, что произошло…" });
+    let attachmentPath = null;
+    const attachName = el("span", { class: "attach-name", text: "файл не выбран" });
+    const attachBtn = el("button", {
+      class: "btn small secondary", type: "button", text: "Прикрепить файл",
+      onclick: async () => {
+        if (!(window.api && window.api.system)) return;
+        const f = await window.api.system.pickAttachment();
+        if (f) { attachmentPath = f.path; attachName.textContent = f.name; }
+      },
+    });
+    const body = el("div", {}, [
+      el("label", { class: "modal-label", text: "Тема:" }), subject,
+      el("label", { class: "modal-label", text: "Текст:" }), text,
+      el("label", { class: "modal-label", text: "Вложение:" }),
+      el("div", { class: "attach-row" }, [attachBtn, attachName]),
+    ]);
+    const ok = await modal({
+      title: "Сообщить об ошибке",
+      bodyNode: body,
+      actions: [
+        { label: "Отмена", value: false, kind: "secondary" },
+        { label: "Отправить", value: true, kind: "primary" },
+      ],
+    });
+    if (!ok) return;
+    try {
+      const res = await window.api.system.sendBugReport({
+        subject: subject.value.trim() || "Сообщение об ошибке (polygons)",
+        body: text.value,
+        attachmentPath,
+      });
+      if (res && res.ok) toast("Письмо подготовлено — откроется в почтовом клиенте", "ok");
+      else toast("Не удалось подготовить письмо", "error");
+    } catch (e) {
+      toast("Ошибка: " + (e && e.message ? e.message : e), "error");
+    }
   }
 
   // ---------- темы (светлая/тёмная) ----------
@@ -307,6 +371,8 @@ window.App = (function () {
     // События из верхнего меню и при изменении данных (импорт резервной копии).
     if (window.api && window.api.on) {
       window.api.on("menu:help", () => showHelp());
+      window.api.on("menu:feedback", () => showFeedback());
+      window.api.on("menu:bug", () => showBugReport());
       window.api.on("menu:set-theme", (v) => setTheme(v));
       window.api.on("data:changed", () => {
         if (current) navigate(current);
