@@ -110,8 +110,9 @@
       clearLayers();
       listEl.querySelectorAll("input.zone-check").forEach((c) => (c.checked = false));
     } });
-    // Сброс фильтров (город + поиск) — не путать с «Очистить отображение» (снимает слои).
+    // Сброс фильтров (город + поиск) И очистка карты от отображённых зон.
     const btnClearFilters = el("button", { class: "btn small secondary", text: "Очистить фильтры", onclick: () => {
+      clearLayers();
       citySel.value = "";
       cityZones = [];
       search.value = "";
