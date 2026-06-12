@@ -16,16 +16,40 @@
   let logEl = null;
   let logCountEl = null;
   let logCount = 0;
+  let placeMarker = null; // временный маркер найденного адреса (не вершина полигона)
+  let debounceTimer = null;
 
   async function show(container) {
-    map = null; points = []; polyline = null; polygon = null; vertexMarkers = []; logCount = 0;
+    map = null; points = []; polyline = null; polygon = null; vertexMarkers = []; logCount = 0; placeMarker = null;
 
     const actions = document.getElementById("viewActions");
     actions.appendChild(el("button", { class: "btn small secondary", text: "Отменить точку", onclick: undoPoint }));
     actions.appendChild(el("button", { class: "btn small secondary", text: "Начать заново", onclick: resetDrawing }));
     actions.appendChild(el("button", { class: "btn primary", text: "Сохранить", onclick: savePolygon }));
 
-    const hint = el("div", { class: "draw-hint", text: "Кликайте по карте, чтобы добавить вершины полигона (минимум 3). Затем «Сохранить»." });
+    // Поиск/позиционирование по адресу: открыть нужное место перед рисованием.
+    const search = el("input", {
+      type: "search",
+      class: "search-input addr-input",
+      placeholder: "Найти место по адресу… (например: Москва, Тверская 1)",
+      autocomplete: "off",
+    });
+    const suggest = el("div", { class: "addr-suggest", hidden: "" });
+    search.addEventListener("input", () => {
+      const q = search.value.trim();
+      clearTimeout(debounceTimer);
+      if (q.length < 3) { suggest.hidden = true; return; }
+      debounceTimer = setTimeout(() => fetchSuggest(q, suggest, search), 450);
+    });
+    document.addEventListener("click", (e) => {
+      if (!suggest.contains(e.target) && e.target !== search) suggest.hidden = true;
+    });
+    const searchRow = el("div", { class: "addr-input-row" }, [
+      el("label", { class: "addr-input-label", text: "Найти место:" }),
+      el("div", { class: "addr-input-wrap" }, [search, suggest]),
+    ]);
+
+    const hint = el("div", { class: "draw-hint", text: "Найдите место по адресу, затем кликайте по карте, чтобы добавить вершины полигона (минимум 3). Затем «Сохранить»." });
 
     const mapEl = el("div", { class: "map-canvas draw-map", id: "drawMapCanvas" });
     const mapWrap = el("div", { class: "map-wrap" }, [mapEl]);
@@ -42,6 +66,7 @@
       logEl,
     ]);
 
+    container.appendChild(searchRow);
     container.appendChild(hint);
     container.appendChild(mapWrap);
     container.appendChild(logDetails);
@@ -69,6 +94,40 @@
     points.push({ lat: latlng.lat, lng: latlng.lng });
     log(`Точка ${points.length}: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`, "info");
     redraw();
+  }
+
+  // ---------- поиск/позиционирование по адресу ----------
+  async function fetchSuggest(q, suggest, input) {
+    log(`Поиск места: «${q}»`, "info");
+    try {
+      const list = await window.api.system.geocode(q);
+      suggest.innerHTML = "";
+      if (!list || !list.length) { suggest.hidden = true; log("Места не найдены", "info"); return; }
+      list.forEach((item) => {
+        suggest.appendChild(el("div", {
+          class: "addr-suggest-item",
+          text: item.displayName,
+          onclick: () => {
+            input.value = item.displayName;
+            suggest.hidden = true;
+            positionTo(item);
+          },
+        }));
+      });
+      suggest.hidden = false;
+    } catch (err) {
+      suggest.hidden = true;
+      log(`✗ Ошибка поиска места: ${(err && err.message) || err}`, "err");
+      toast("Ошибка поиска адреса", "error");
+    }
+  }
+
+  function positionTo(item) {
+    if (!map) return;
+    if (placeMarker) { map.removeLayer(placeMarker); placeMarker = null; }
+    placeMarker = L.marker([item.lat, item.lon], { opacity: 0.9 }).addTo(map);
+    map.setView([item.lat, item.lon], 14);
+    log(`Карта спозиционирована: ${item.displayName}`, "ok");
   }
 
   function undoPoint() {
