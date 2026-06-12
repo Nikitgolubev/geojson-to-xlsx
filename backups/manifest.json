@@ -1,0 +1,10 @@
+{
+  "app": "geojson-zones-sync",
+  "version": 1,
+  "savedAt": "2026-06-12T15:42:52.377Z",
+  "dataHash": "52ea92fd18e0c39c2e8ea696fe0c9585666147542daf84f1a6b02b88bf8e76b8",
+  "counts": {
+    "cities": 29,
+    "zones": 1123
+  }
+}
