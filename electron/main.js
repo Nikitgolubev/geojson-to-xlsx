@@ -10,6 +10,7 @@ const { buildAppMenu } = require("./menu");
 const { writeAllToFolders, writeZonesToFolder } = require("./export-folders");
 const { buildEml } = require("./bug-report");
 const { isNewer, parseLatest } = require("./version-check");
+const { parseNominatim, buildSearchUrl } = require("./geocode");
 
 // Точка входа главного процесса Electron.
 // IPC-обработчики (cities/zones/log) регистрируются в registerIpc().
@@ -92,6 +93,7 @@ function registerIpc() {
 
   // Система / обратная связь
   handle("system:openExternal", (url) => openExternal(url));
+  handle("system:geocode", (query) => geocodeAddress(query));
   handle("system:pickAttachment", () => pickAttachment());
   handle("system:sendBugReport", (payload) => sendBugReport(payload));
 }
@@ -278,6 +280,25 @@ async function importBackup() {
     message: `Добавлено городов: ${res.citiesAdded}\nДобавлено зон: ${res.zonesAdded}`,
   });
   return { canceled: false, ...res };
+}
+
+// Геокодинг адреса через OSM Nominatim (из main, чтобы не ослаблять CSP renderer).
+async function geocodeAddress(query) {
+  const q = String(query == null ? "" : query).trim();
+  if (q.length < 3) return [];
+  const https = require("https");
+  const url = buildSearchUrl(q);
+  let json = "";
+  await new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { "User-Agent": "polygons (geojson-zones)" } }, (res) => {
+      res.on("data", (chunk) => { json += chunk; });
+      res.on("end", resolve);
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    req.setTimeout(10000, () => req.destroy(new Error("Таймаут запроса к геокодеру")));
+  });
+  return parseNominatim(json);
 }
 
 async function checkForUpdates() {
