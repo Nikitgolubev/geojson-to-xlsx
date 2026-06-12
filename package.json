@@ -1,6 +1,6 @@
 {
   "name": "geojson-zones",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Десктоп-приложение для хранения и систематизации зон (GeoJSON) по городам",
   "author": "Nikita Golubev",
   "license": "MIT",
