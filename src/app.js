@@ -11,6 +11,7 @@ window.App = (function () {
     zones: "Зоны",
     map: "Карта",
     addrcheck: "Проверка адреса",
+    draw: "Создание полигона",
     log: "Журнал действий",
   };
   let current = null;

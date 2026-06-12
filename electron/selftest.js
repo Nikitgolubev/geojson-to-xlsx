@@ -145,8 +145,43 @@ const ADDRTEST_JS = `(async function(){
   return "OK ✔ input/map/log смонтированы, logLines=" + logLines + ", matched=" + matched;
 })()`;
 
+// Проверка вкладки «Создание полигона»: монтирование + рисование 4 точек кликами
+// по карте + сохранение → появление неразобранной зоны с валидным geojson.
+const DRAWTEST_JS = `(async function(){
+  const api = window.api;
+  const sleep = (ms) => new Promise(function(r){ setTimeout(r, ms); });
+  await window.App.navigate("draw");
+  await sleep(400);
+  const hasMap = !!document.querySelector(".draw-map");
+  const hasLog = !!document.querySelector(".addr-log");
+  const btnSave = Array.prototype.find.call(document.querySelectorAll("#viewActions .btn"), function(b){ return b.textContent === "Сохранить"; });
+  const btnReset = Array.prototype.find.call(document.querySelectorAll("#viewActions .btn"), function(b){ return b.textContent === "Начать заново"; });
+  if (!hasMap) throw new Error("нет карты рисования");
+  if (!hasLog) throw new Error("нет журнала");
+  if (!btnSave) throw new Error("нет кнопки Сохранить");
+  if (!btnReset) throw new Error("нет кнопки Начать заново");
+  // Эмулируем 4 клика по карте (Leaflet click с latlng).
+  const m = window.__drawMapForTest;
+  if (!m) throw new Error("карта не доступна для теста");
+  const pts = [[55.6,37.4],[55.6,37.8],[55.9,37.8],[55.9,37.4]];
+  for (const p of pts) { m.fire("click", { latlng: L.latLng(p[0], p[1]) }); await sleep(30); }
+  const before = (await api.zones.allForCheck()).length;
+  // Сохранение: вызываем напрямую сохранение через тест-хук (минуя модалку имени).
+  await window.__drawSaveForTest("polytest");
+  await sleep(300);
+  const zones = await api.zones.allForCheck();
+  const z = zones.find(function(x){ return x.name === "polytest"; });
+  if (!z) throw new Error("зона polytest не создана");
+  if (!z.geojson) throw new Error("у зоны нет geojson");
+  const gj = JSON.parse(z.geojson);
+  const inside = window.GeoJSONLib.pointInGeojson(37.6, 55.75, gj);
+  if (!inside) throw new Error("точка внутри нарисованного полигона не засчитана");
+  if (zones.length !== before + 1) throw new Error("ожидалось +1 зона, было " + before + ", стало " + zones.length);
+  return "OK ✔ карта/журнал/кнопки на месте, зона polytest создана, входимость=true";
+})()`;
+
 function isEnabled() {
-  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST || process.env.GZ_ADDRTEST);
+  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST || process.env.GZ_ADDRTEST || process.env.GZ_DRAWTEST);
 }
 
 // Навешивает отладочные хуки на окно. app нужен для app.exit().
@@ -158,7 +193,9 @@ function attach(mainWindow, app) {
     wc.on("did-fail-load", (_e, code, desc) => console.log("[did-fail-load]", code, desc));
   }
 
-  const mode = process.env.GZ_ADDRTEST
+  const mode = process.env.GZ_DRAWTEST
+    ? { label: "DRAWTEST", js: DRAWTEST_JS, delay: 1500 }
+    : process.env.GZ_ADDRTEST
     ? { label: "ADDRTEST", js: ADDRTEST_JS, delay: 1500 }
     : process.env.GZ_MAPTEST
     ? { label: "MAPTEST", js: MAPTEST_JS, delay: 1500 }
