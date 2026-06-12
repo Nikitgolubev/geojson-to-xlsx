@@ -19,6 +19,7 @@
     "test:map": "node scripts/test-map.js",
     "test:addr": "node scripts/test-addr.js",
     "test:draw": "node scripts/test-draw.js",
+    "test:sync-ui": "node scripts/test-sync.js",
     "make:icon": "node scripts/make-icon-run.js",
     "test:ui": "node scripts/test-ui.js",
     "test:func": "node scripts/test-func.js",

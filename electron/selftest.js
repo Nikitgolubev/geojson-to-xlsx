@@ -182,8 +182,33 @@ const DRAWTEST_JS = `(async function(){
   return "OK ✔ карта/журнал/кнопки на месте, зона polytest создана, входимость=true";
 })()`;
 
+// Проверка вкладки «Обновление данных»: монтирование (поле токена, лампочка,
+// кнопки, шкала, журнал) + работа IPC sync:getToken/setToken.
+const SYNCTEST_JS = `(async function(){
+  const api = window.api;
+  const sleep = (ms) => new Promise(function(r){ setTimeout(r, ms); });
+  await window.App.navigate("sync");
+  await sleep(400);
+  const hasToken = !!document.querySelector(".sync-token");
+  const hasLamp = !!document.querySelector(".sync-lamp");
+  const hasProgress = !!document.querySelector(".sync-progress");
+  const hasLog = !!document.querySelector(".addr-log");
+  const btnPush = Array.prototype.find.call(document.querySelectorAll(".sync-actions .btn"), function(b){ return b.textContent === "Отправить данные в хранилище"; });
+  const btnPull = Array.prototype.find.call(document.querySelectorAll(".sync-actions .btn"), function(b){ return b.textContent === "Получить данные из хранилища"; });
+  if (!hasToken) throw new Error("нет поля токена");
+  if (!hasLamp) throw new Error("нет лампочки");
+  if (!hasProgress) throw new Error("нет шкалы загрузки");
+  if (!hasLog) throw new Error("нет журнала");
+  if (!btnPush || !btnPull) throw new Error("нет кнопок отправки/получения");
+  // IPC токена работает (запись/чтение в изолированной userData).
+  await api.sync.setToken("test-token-123");
+  const got = await api.sync.getToken();
+  if (got.token !== "test-token-123") throw new Error("getToken/setToken не совпали: " + got.token);
+  return "OK ✔ поле токена/лампочка/кнопки/шкала/журнал на месте; токен сохраняется";
+})()`;
+
 function isEnabled() {
-  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST || process.env.GZ_ADDRTEST || process.env.GZ_DRAWTEST);
+  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST || process.env.GZ_ADDRTEST || process.env.GZ_DRAWTEST || process.env.GZ_SYNCTEST);
 }
 
 // Навешивает отладочные хуки на окно. app нужен для app.exit().
@@ -195,7 +220,9 @@ function attach(mainWindow, app) {
     wc.on("did-fail-load", (_e, code, desc) => console.log("[did-fail-load]", code, desc));
   }
 
-  const mode = process.env.GZ_DRAWTEST
+  const mode = process.env.GZ_SYNCTEST
+    ? { label: "SYNCTEST", js: SYNCTEST_JS, delay: 1500 }
+    : process.env.GZ_DRAWTEST
     ? { label: "DRAWTEST", js: DRAWTEST_JS, delay: 1500 }
     : process.env.GZ_ADDRTEST
     ? { label: "ADDRTEST", js: ADDRTEST_JS, delay: 1500 }
