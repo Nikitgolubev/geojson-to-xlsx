@@ -20,7 +20,7 @@
     lampEl = el("span", { class: "sync-lamp", title: "Проверка доступа к GitHub…" });
     const saveTokenBtn = el("button", { class: "btn small", text: "Сохранить токен", onclick: () => saveToken(tokenInput) });
     const helpBtn = el("button", { class: "btn small secondary", text: "Как создать токен", onclick: () => {
-      window.api.system.openExternal("https://github.com/settings/tokens?type=beta");
+      window.api.system.openExternal("https://github.com/settings/personal-access-tokens/new");
     } });
     // Примечание-подсказка (жёлтый «!», текст по наведению).
     const noteText =
@@ -102,16 +102,28 @@
     }
   }
 
-  // Лампочка доступности GitHub с текущим токеном.
+  // Лампочка: зелёная — доступ + право записи; жёлтая — доступ только на чтение
+  // (отправка не сработает); красная — репозиторий недоступен / токен не принят.
   async function pingLamp() {
     if (lampEl) { lampEl.className = "sync-lamp"; lampEl.title = "Проверка доступа к GitHub…"; }
     try {
       const r = await window.api.sync.ping();
-      if (lampEl) {
-        lampEl.className = "sync-lamp " + (r.ok ? "ok" : "err");
-        lampEl.title = r.ok ? "GitHub доступен с этим токеном" : `Недоступно (код ${r.status})`;
+      let cls, title, msg, kind;
+      if (!r.ok) {
+        cls = "err"; kind = "err";
+        title = `Репозиторий недоступен (код ${r.status})` + (r.hasToken ? ", токен не принят" : ", токен не задан");
+        msg = `GitHub недоступен: код ${r.status}` + (r.hasToken ? " (токен не принят)" : " (нет токена)");
+      } else if (!r.canWrite) {
+        cls = "warn"; kind = "warn";
+        title = "Доступ только на чтение — для «Отправить данные» нужен токен с правом Contents: Read and write";
+        msg = "GitHub доступен, но токен БЕЗ права записи — отправка не сработает (нужно Contents: Read and write)";
+      } else {
+        cls = "ok"; kind = "ok";
+        title = "GitHub доступен, есть право записи — можно отправлять данные";
+        msg = "GitHub доступен, право записи есть (лампочка зелёная)";
       }
-      log(r.ok ? "GitHub доступен (лампочка зелёная)" : `GitHub недоступен: код ${r.status}`, r.ok ? "ok" : "err");
+      if (lampEl) { lampEl.className = "sync-lamp " + cls; lampEl.title = title; }
+      log(msg, kind === "warn" ? "info" : kind);
     } catch (err) {
       if (lampEl) { lampEl.className = "sync-lamp err"; lampEl.title = "Ошибка проверки доступа"; }
       log(`✗ Проверка доступа: ${errText(err)}`, "err");

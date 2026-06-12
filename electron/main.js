@@ -462,14 +462,18 @@ function ghRequest(method, urlPath, { token, body } = {}) {
   });
 }
 
-// Проверка доступности репозитория с текущим токеном (для «лампочки»).
+// Проверка доступности репозитория и ПРАВА ЗАПИСИ с текущим токеном (для «лампочки»).
+// GitHub в ответе /repos отдаёт permissions.push = true, если токен может писать.
 async function pingGithub() {
   const token = getSyncToken();
   try {
     const res = await ghRequest("GET", `/repos/${GH_OWNER_REPO}`, { token });
-    return { ok: res.status === 200, status: res.status, hasToken: !!token };
+    const ok = res.status === 200;
+    const perms = res.json && res.json.permissions ? res.json.permissions : null;
+    const canWrite = !!(perms && perms.push);
+    return { ok, status: res.status, hasToken: !!token, canWrite };
   } catch (err) {
-    return { ok: false, status: 0, hasToken: !!token, error: String(err.message || err) };
+    return { ok: false, status: 0, hasToken: !!token, canWrite: false, error: String(err.message || err) };
   }
 }
 
@@ -498,6 +502,14 @@ async function ghPutFile(name, obj, sha, message) {
   const res = await ghRequest("PUT", `/repos/${GH_OWNER_REPO}/contents/${GH_DIR}/${name}`, { token, body });
   if (res.status !== 200 && res.status !== 201) {
     const msg = res.json && res.json.message ? res.json.message : res.status;
+    // 403/404 при записи → почти всегда нехватка прав токена.
+    if (res.status === 403 || res.status === 404) {
+      throw new Error(
+        `Нет прав на запись (${res.status}). У токена должно быть Contents: Read and write ` +
+        `на репозиторий geojson-to-xlsx (для классического токена — scope «repo»). ` +
+        `Пересоздайте токен с этими правами. Ответ GitHub: ${msg}`
+      );
+    }
     throw new Error(`GitHub отклонил запись ${name}: ${msg}`);
   }
   return res.json;

@@ -306,6 +306,7 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
   transition: background 0.2s;
 }
 .sync-lamp.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.sync-lamp.warn { background: #f5a623; box-shadow: 0 0 6px #f5a623; }
 .sync-lamp.err { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
 /* Примечание-подсказка (жёлтый «!» + всплывающий текст по наведению/фокусу) */
 .sync-note { position: relative; display: inline-flex; cursor: help; flex: 0 0 auto; }
