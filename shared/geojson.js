@@ -175,5 +175,69 @@
     return { points, count: points.length, warnings, geojson };
   }
 
-  return { extractLonLat, parseAndExtract };
+  // ---------- Входимость точки в полигон (ray-casting) ----------
+  // ВАЖНО: координаты GeoJSON — [lon, lat]; функции принимают (lon, lat) именно
+  // в этом порядке. Алгоритм — чётность пересечений горизонтального луча с рёбрами.
+
+  // Точка внутри одного кольца? ring: [[lon,lat], ...].
+  function pointInRing(lon, lat, ring) {
+    if (!Array.isArray(ring) || ring.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i];
+      const b = ring[j];
+      if (!Array.isArray(a) || !Array.isArray(b)) continue;
+      const xi = Number(a[0]);
+      const yi = Number(a[1]);
+      const xj = Number(b[0]);
+      const yj = Number(b[1]);
+      const intersect =
+        (yi > lat) !== (yj > lat) &&
+        lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  // Точка внутри полигона (rings[0] — внешнее кольцо, rings[1..] — дырки).
+  function pointInPolygon(lon, lat, rings) {
+    if (!Array.isArray(rings) || !rings.length) return false;
+    if (!pointInRing(lon, lat, rings[0])) return false; // вне внешнего кольца
+    for (let i = 1; i < rings.length; i++) {
+      if (pointInRing(lon, lat, rings[i])) return false; // в дырке → снаружи
+    }
+    return true;
+  }
+
+  // Точка внутри хоть одного полигона геометрии GeoJSON?
+  // Обходит те же типы, что extractLonLat; не-полигональные геометрии игнорирует.
+  function pointInGeojson(lon, lat, geojson) {
+    const x = Number(lon);
+    const y = Number(lat);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+
+    function walk(node) {
+      if (!node || typeof node !== "object") return false;
+      switch (node.type) {
+        case "FeatureCollection":
+          return Array.isArray(node.features) && node.features.some(walk);
+        case "Feature":
+          return node.geometry ? walk(node.geometry) : false;
+        case "GeometryCollection":
+          return Array.isArray(node.geometries) && node.geometries.some(walk);
+        case "Polygon":
+          return pointInPolygon(x, y, node.coordinates);
+        case "MultiPolygon":
+          return (
+            Array.isArray(node.coordinates) &&
+            node.coordinates.some((poly) => pointInPolygon(x, y, poly))
+          );
+        default:
+          return false; // Point/LineString/прочее — без площади
+      }
+    }
+    return walk(geojson);
+  }
+
+  return { extractLonLat, parseAndExtract, pointInRing, pointInPolygon, pointInGeojson };
 });

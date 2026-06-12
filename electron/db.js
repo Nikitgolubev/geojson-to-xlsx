@@ -153,6 +153,17 @@ const zones = {
       .get(id);
   },
 
+  // Все зоны с geojson и именем города (для проверки входимости адреса).
+  allWithGeojson() {
+    return db
+      .prepare(
+        `SELECT z.id, z.name, z.city_id, c.name AS city_name, z.geojson
+         FROM zones z LEFT JOIN cities c ON c.id = z.city_id
+         ORDER BY c.name COLLATE NOCASE, z.name COLLATE NOCASE`
+      )
+      .all();
+  },
+
   /**
    * Создать зону. geojson хранится как есть (источник истины).
    * @param {{name:string, geojson:string, cityId?:number|null,

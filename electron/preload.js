@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("api", {
     listUnassigned: () => invoke("zones:listUnassigned"),
     countUnassigned: () => invoke("zones:countUnassigned"),
     get: (id) => invoke("zones:get", id),
+    allForCheck: () => invoke("zones:allForCheck"),
     // payload: { name, geojson, cityId?, pointCount?, sourceFilename? }
     create: (payload) => invoke("zones:create", payload),
     findByName: (name) => invoke("zones:findByName", name),
@@ -47,6 +48,7 @@ contextBridge.exposeInMainWorld("api", {
     openExternal: (url) => invoke("system:openExternal", url),
     pickAttachment: () => invoke("system:pickAttachment"),
     sendBugReport: (payload) => invoke("system:sendBugReport", payload),
+    geocode: (query) => invoke("system:geocode", query),
   },
   // Подписка на события из main (только разрешённые каналы). Возвращает отписку.
   on: (channel, callback) => {
