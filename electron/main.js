@@ -318,6 +318,22 @@ async function geocodeAddress(query) {
   return parseNominatim(json);
 }
 
+// Авто-бэкап данных (города+зоны) в папку «Загрузки» перед обновлением.
+function backupToDownloads() {
+  const snapshot = db.data.exportAll();
+  const dir = app.getPath("downloads");
+  const stamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let target = path.join(dir, `polygons-backup-${stamp}.json`);
+  let n = 2;
+  while (fs.existsSync(target)) {
+    target = path.join(dir, `polygons-backup-${stamp} (${n}).json`);
+    n++;
+  }
+  fs.writeFileSync(target, JSON.stringify(snapshot, null, 2), "utf-8");
+  db.appendLog("info", `Авто-бэкап перед обновлением (${snapshot.zones.length} зон) → ${target}`);
+  return { path: target, zones: snapshot.zones.length, cities: snapshot.cities.length };
+}
+
 async function checkForUpdates() {
   const https = require("https");
   const currentVersion = app.getVersion();
@@ -342,7 +358,23 @@ async function checkForUpdates() {
         defaultId: 0,
         cancelId: 1,
       });
-      if (response === 0) await shell.openExternal(release.htmlUrl);
+      if (response === 0) {
+        // Перед обновлением сохраняем резервную копию данных в «Загрузки».
+        let backupNote = "";
+        try {
+          const b = backupToDownloads();
+          backupNote = `Резервная копия данных сохранена в «Загрузки»:\n${b.path}\n(городов: ${b.cities}, зон: ${b.zones})`;
+        } catch (e) {
+          backupNote = `Не удалось создать резервную копию: ${e && e.message ? e.message : e}`;
+        }
+        await dialog.showMessageBox(mainWindow, {
+          type: "info",
+          title: "Резервная копия",
+          message: backupNote,
+          buttons: ["Перейти к загрузке"],
+        });
+        await shell.openExternal(release.htmlUrl);
+      }
     } else {
       await dialog.showMessageBox(mainWindow, {
         type: "info",
