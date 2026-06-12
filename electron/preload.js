@@ -10,6 +10,7 @@ const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 // События main→renderer разрешены только из белого списка каналов.
 const ALLOWED_EVENTS = new Set([
   "menu:help", "data:changed", "menu:set-theme", "menu:feedback", "menu:bug",
+  "sync:progress",
 ]);
 
 contextBridge.exposeInMainWorld("api", {
@@ -38,6 +39,14 @@ contextBridge.exposeInMainWorld("api", {
     exportGeojson: (id) => invoke("zones:exportGeojson", id),
     exportXlsx: (id) => invoke("zones:exportXlsx", id),
     exportManyToFolder: (ids, format) => invoke("zones:exportManyToFolder", ids, format),
+  },
+  sync: {
+    getToken: () => invoke("sync:getToken"),
+    setToken: (token) => invoke("sync:setToken", token),
+    ping: () => invoke("sync:ping"),
+    check: () => invoke("sync:check"),
+    push: () => invoke("sync:push"),
+    pull: () => invoke("sync:pull"),
   },
   log: {
     list: (limit) => invoke("log:list", limit),

@@ -11,6 +11,7 @@ const { writeAllToFolders, writeZonesToFolder, sanitizeName } = require("./expor
 const { buildEml } = require("./bug-report");
 const { isNewer, parseLatest } = require("./version-check");
 const { parseNominatim, buildSearchUrl } = require("./geocode");
+const ghSync = require("./github-sync");
 
 // Точка входа главного процесса Electron.
 // IPC-обработчики (cities/zones/log) регистрируются в registerIpc().
@@ -97,6 +98,14 @@ function registerIpc() {
   handle("system:saveToDownloads", (filename, content) => saveToDownloads(filename, content));
   handle("system:pickAttachment", () => pickAttachment());
   handle("system:sendBugReport", (payload) => sendBugReport(payload));
+
+  // Синхронизация данных с GitHub (вкладка «Обновление данных», v0.9.0)
+  handle("sync:getToken", () => ({ token: getSyncToken() }));
+  handle("sync:setToken", (token) => setSyncToken(token));
+  handle("sync:ping", () => pingGithub());
+  handle("sync:check", () => checkDataSync());
+  handle("sync:push", () => pushData());
+  handle("sync:pull", () => pullData());
 }
 
 // Открыть внешнюю ссылку (только http/https/mailto).
@@ -392,6 +401,179 @@ async function checkForUpdates() {
       buttons: ["OK"],
     });
   }
+}
+
+// ===== Синхронизация данных с GitHub (v0.9.0) =====
+const GH_OWNER_REPO = "Nikitgolubev/geojson-to-xlsx";
+const GH_BRANCH = "main";
+const GH_DIR = "backups";
+
+function tokenFile() { return path.join(app.getPath("userData"), "github-token.json"); }
+function getSyncToken() {
+  try { return JSON.parse(fs.readFileSync(tokenFile(), "utf-8")).token || ""; }
+  catch (_) { return ""; }
+}
+function setSyncToken(token) {
+  fs.writeFileSync(tokenFile(), JSON.stringify({ token: String(token || "").trim() }), "utf-8");
+  return { ok: true };
+}
+function syncStateFile() { return path.join(app.getPath("userData"), "sync-state.json"); }
+function getSyncState() {
+  try { return JSON.parse(fs.readFileSync(syncStateFile(), "utf-8")); }
+  catch (_) { return null; }
+}
+function setSyncState(state) {
+  fs.writeFileSync(syncStateFile(), JSON.stringify(state), "utf-8");
+}
+
+function emitSyncProgress(percent, text) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("sync:progress", { percent, text });
+  }
+}
+
+// Низкоуровневый HTTPS-запрос к GitHub API. Возвращает {status, json, raw}.
+function ghRequest(method, urlPath, { token, body } = {}) {
+  const https = require("https");
+  const headers = {
+    "User-Agent": "polygons (geojson-zones)",
+    "Accept": "application/vnd.github+json",
+  };
+  if (token) headers["Authorization"] = "token " + token;
+  let payload = null;
+  if (body != null) { payload = JSON.stringify(body); headers["Content-Type"] = "application/json"; }
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      { method, hostname: "api.github.com", path: urlPath, headers },
+      (res) => {
+        let data = "";
+        res.on("data", (c) => { data += c; });
+        res.on("end", () => {
+          let json = null;
+          try { json = data ? JSON.parse(data) : null; } catch (_) {}
+          resolve({ status: res.statusCode, json, raw: data });
+        });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(15000, () => req.destroy(new Error("Таймаут запроса к GitHub")));
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+// Проверка доступности репозитория с текущим токеном (для «лампочки»).
+async function pingGithub() {
+  const token = getSyncToken();
+  try {
+    const res = await ghRequest("GET", `/repos/${GH_OWNER_REPO}`, { token });
+    return { ok: res.status === 200, status: res.status, hasToken: !!token };
+  } catch (err) {
+    return { ok: false, status: 0, hasToken: !!token, error: String(err.message || err) };
+  }
+}
+
+// Получить файл из backups/ → {content(parsed JSON|null), sha|null, exists}.
+async function ghGetFile(name) {
+  const token = getSyncToken();
+  const res = await ghRequest("GET", `/repos/${GH_OWNER_REPO}/contents/${GH_DIR}/${name}?ref=${GH_BRANCH}`, { token });
+  if (res.status === 404) return { exists: false, content: null, sha: null };
+  if (res.status !== 200 || !res.json) throw new Error(`GitHub ${res.status} при чтении ${name}`);
+  const decoded = Buffer.from(res.json.content || "", "base64").toString("utf-8");
+  let content = null;
+  try { content = JSON.parse(decoded); } catch (_) {}
+  return { exists: true, content, sha: res.json.sha };
+}
+
+// Записать (создать/обновить) файл в backups/ через Contents API (нужен токен).
+async function ghPutFile(name, obj, sha, message) {
+  const token = getSyncToken();
+  if (!token) throw new Error("Не задан токен GitHub");
+  const body = {
+    message: message || `data: update ${name}`,
+    content: Buffer.from(JSON.stringify(obj, null, 2), "utf-8").toString("base64"),
+    branch: GH_BRANCH,
+  };
+  if (sha) body.sha = sha;
+  const res = await ghRequest("PUT", `/repos/${GH_OWNER_REPO}/contents/${GH_DIR}/${name}`, { token, body });
+  if (res.status !== 200 && res.status !== 201) {
+    const msg = res.json && res.json.message ? res.json.message : res.status;
+    throw new Error(`GitHub отклонил запись ${name}: ${msg}`);
+  }
+  return res.json;
+}
+
+// Проверка актуальности локальных данных относительно хранилища.
+async function checkDataSync() {
+  const snapshot = db.data.exportAll();
+  const localHash = ghSync.computeHash(snapshot);
+  let manifest = null;
+  try {
+    const m = await ghGetFile("manifest.json");
+    manifest = m.content;
+  } catch (err) {
+    return { ok: false, error: String(err.message || err), localHash };
+  }
+  const remoteHash = manifest ? manifest.dataHash : null;
+  const verdict = ghSync.decideVerdict(localHash, remoteHash, getSyncState());
+  return {
+    ok: true,
+    verdict,
+    localCounts: { cities: snapshot.cities.length, zones: snapshot.zones.length },
+    remote: manifest ? { version: manifest.version, savedAt: manifest.savedAt, counts: manifest.counts } : null,
+  };
+}
+
+// Отправить данные в хранилище (push). Требует токен.
+async function pushData() {
+  if (!getSyncToken()) throw new Error("Сначала сохраните токен GitHub");
+  emitSyncProgress(5, "Подготовка данных…");
+  const snapshot = db.data.exportAll();
+  const hash = ghSync.computeHash(snapshot);
+  const savedAt = new Date().toISOString();
+
+  emitSyncProgress(20, "Чтение текущей версии в хранилище…");
+  const curManifest = await ghGetFile("manifest.json");
+  const curLatest = await ghGetFile("latest.json");
+  const version = ghSync.nextVersion(curManifest.content ? curManifest.content.version : 0);
+
+  const fullSnapshot = Object.assign({}, snapshot, { syncVersion: version, savedAt, dataHash: hash });
+  emitSyncProgress(50, "Загрузка latest.json…");
+  await ghPutFile("latest.json", fullSnapshot, curLatest.sha, `data: snapshot v${version} (${savedAt})`);
+
+  const manifest = ghSync.buildManifest({ version, savedAt, hash, cities: snapshot.cities, zones: snapshot.zones });
+  emitSyncProgress(80, "Загрузка manifest.json…");
+  await ghPutFile("manifest.json", manifest, curManifest.sha, `data: manifest v${version}`);
+
+  setSyncState({ version, savedAt, hash });
+  emitSyncProgress(100, "Готово");
+  db.appendLog("info", `Данные отправлены в хранилище: версия ${version} (${snapshot.zones.length} зон)`);
+  return { ok: true, version, savedAt, counts: { cities: snapshot.cities.length, zones: snapshot.zones.length } };
+}
+
+// Получить данные из хранилища (pull) — ПОЛНАЯ ЗАМЕНА локальных. Перед этим — бэкап.
+async function pullData() {
+  emitSyncProgress(5, "Резервная копия текущих данных…");
+  try { backupToDownloads(); } catch (_) {}
+
+  emitSyncProgress(25, "Скачивание latest.json…");
+  const latest = await ghGetFile("latest.json");
+  if (!latest.exists || !latest.content) throw new Error("В хранилище нет данных (latest.json)");
+  const payload = latest.content;
+
+  emitSyncProgress(60, "Применение данных (замена)…");
+  const res = db.data.replaceAll(payload);
+
+  // Обновляем локальное состояние синка из манифеста (если есть).
+  try {
+    const m = await ghGetFile("manifest.json");
+    if (m.content) setSyncState({ version: m.content.version, savedAt: m.content.savedAt, hash: m.content.dataHash });
+  } catch (_) {}
+
+  notifyDataChanged();
+  emitSyncProgress(100, "Готово");
+  db.appendLog("info", `Данные получены из хранилища (замена): ${res.citiesAdded} городов, ${res.zonesAdded} зон`);
+  return { ok: true, counts: { cities: res.citiesAdded, zones: res.zonesAdded } };
 }
 
 app.whenReady().then(() => {
