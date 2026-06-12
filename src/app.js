@@ -10,7 +10,7 @@ window.App = (function () {
     catalog: "Города",
     zones: "Зоны",
     map: "Карта",
-    addrcheck: "Проверка адреса (тест)",
+    addrcheck: "Проверка адреса",
     log: "Журнал действий",
   };
   let current = null;

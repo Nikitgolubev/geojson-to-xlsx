@@ -234,8 +234,16 @@ details[open] > .city-summary::before { transform: rotate(90deg); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== v0.6.0: проверка адреса ===== */
-.addr-input-wrap { position: relative; max-width: 640px; margin-bottom: 12px; }
-.addr-input { width: 100%; }
+.addr-input-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.addr-input-label { font-weight: 600; color: var(--text); }
+.addr-input-wrap { position: relative; flex: 1; min-width: 280px; max-width: 640px; }
+/* v0.7.0: выделенное поле ввода адреса */
+.addr-input {
+  width: 100%; font-size: 1.02rem; padding: 11px 14px;
+  border: 2px solid var(--accent); border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+.addr-input:focus { outline: none; box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.22); }
 .addr-suggest {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 600;
   background: var(--surface); border: 1px solid var(--border);

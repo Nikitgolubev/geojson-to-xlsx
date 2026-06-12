@@ -1,6 +1,6 @@
 "use strict";
 
-// Вкладка «Проверка адреса (тест)»: ввод адреса → геокодинг (OSM Nominatim через
+// Вкладка «Проверка адреса»: ввод адреса → геокодинг (OSM Nominatim через
 // main) → проверка входимости координат в сохранённые зоны (математически,
 // GeoJSONLib.pointInGeojson) → результат зелёным/красным + карта + журнал проверки.
 (function () {
@@ -44,10 +44,22 @@
 
     const inputWrap = el("div", { class: "addr-input-wrap" }, [input, suggest]);
 
+    // Подпись + выделенное поле ввода + кнопка «Очистить результаты».
+    const clearBtn = el("button", {
+      class: "btn small secondary",
+      text: "Очистить результаты",
+      onclick: () => clearResults(input, suggest),
+    });
+    const inputRow = el("div", { class: "addr-input-row" }, [
+      el("label", { class: "addr-input-label", text: "Адрес:" }),
+      inputWrap,
+      clearBtn,
+    ]);
+
     // --- Блок координат ---
     const coordsEl = el("div", { class: "addr-coords", text: "Адрес не выбран." });
 
-    // --- Блок результата ---
+    // --- Блок результата (скрыт до выбора адреса) ---
     const resultEl = el("div", { class: "addr-result", hidden: "" });
 
     // --- Карта ---
@@ -74,7 +86,7 @@
       logEl,
     ]);
 
-    container.appendChild(inputWrap);
+    container.appendChild(inputRow);
     container.appendChild(coordsEl);
     container.appendChild(resultEl);
     container.appendChild(mapWrap);
@@ -127,6 +139,18 @@
 
   function hideSuggest(suggest) {
     suggest.hidden = true;
+  }
+
+  // Сброс результатов проверки (поле, координаты, результат, маркер, слои, карта).
+  function clearResults(input, suggest) {
+    if (input) input.value = "";
+    if (suggest) { suggest.innerHTML = ""; suggest.hidden = true; }
+    if (ctx && ctx.coordsEl) { ctx.coordsEl.innerHTML = ""; ctx.coordsEl.textContent = "Адрес не выбран."; }
+    if (ctx && ctx.resultEl) { ctx.resultEl.innerHTML = ""; ctx.resultEl.className = "addr-result"; ctx.resultEl.hidden = true; }
+    if (marker && map) { map.removeLayer(marker); marker = null; }
+    clearLayers();
+    if (map) map.setView([55.751244, 37.618423], 9);
+    log("Результаты очищены", "info");
   }
 
   // ---------- выбор адреса → проверка ----------
