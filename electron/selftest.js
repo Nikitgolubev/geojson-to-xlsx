@@ -153,7 +153,9 @@ const DRAWTEST_JS = `(async function(){
   await window.App.navigate("draw");
   await sleep(400);
   const hasMap = !!document.querySelector(".draw-map");
+  const hasSearch = !!document.querySelector(".addr-input");
   const hasLog = !!document.querySelector(".addr-log");
+  if (!hasSearch) throw new Error("нет поля поиска места по адресу");
   const btnSave = Array.prototype.find.call(document.querySelectorAll("#viewActions .btn"), function(b){ return b.textContent === "Сохранить"; });
   const btnReset = Array.prototype.find.call(document.querySelectorAll("#viewActions .btn"), function(b){ return b.textContent === "Начать заново"; });
   if (!hasMap) throw new Error("нет карты рисования");
