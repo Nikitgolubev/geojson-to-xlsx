@@ -85,6 +85,20 @@ function main() {
     "зоны из снимка прибавились"
   );
 
+  // --- v0.9.0: replaceAll (полная замена данных из снимка) ---
+  const snap2 = {
+    app: "geojson-zones-sync",
+    cities: [{ name: "Казань" }],
+    zones: [{ name: "OnlyZone", cityName: "Казань", geojson: gj, point_count: 1 }],
+  };
+  db.data.replaceAll(snap2);
+  const citiesAfter = db.cities.list();
+  assert.strictEqual(citiesAfter.length, 1, "replaceAll: ровно 1 город (Казань)");
+  assert.strictEqual(citiesAfter[0].name, "Казань", "replaceAll: старые города удалены");
+  const allZones = db.zones.allWithGeojson();
+  assert.strictEqual(allZones.length, 1, "replaceAll: ровно 1 зона");
+  assert.strictEqual(allZones[0].name, "OnlyZone", "replaceAll: загружена зона из снимка");
+
   // чистим временную БД
   fs.rmSync(tmp, { recursive: true, force: true });
 

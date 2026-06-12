@@ -348,58 +348,74 @@ const data = {
   // Загрузка резервной копии в режиме merge: города по имени переиспользуются
   // (создаются при отсутствии), зоны добавляются. Всё в одной транзакции.
   importAll(payload) {
-    const p = payload || {};
-    if (p.app !== "geojson-zones") throw new Error("Файл не является резервной копией GeoJSON Zones");
-    const inCities = Array.isArray(p.cities) ? p.cities : [];
-    const inZones = Array.isArray(p.zones) ? p.zones : [];
+    const tx = db.transaction(() => doImport(payload));
+    const res = tx();
+    appendLog("info", `Загружена резервная копия: +${res.citiesAdded} городов, +${res.zonesAdded} зон`);
+    return res;
+  },
 
-    const findCity = db.prepare("SELECT id FROM cities WHERE name = ?");
-    const insCity = db.prepare("INSERT INTO cities (name) VALUES (?)");
-    const insZone = db.prepare(
-      `INSERT INTO zones (city_id, name, geojson, point_count, source_filename,
-                          geojson_updated_at, xlsx_generated_at)
-       VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)`
-    );
-
-    let citiesAdded = 0;
-    let zonesAdded = 0;
-
-    // Город по имени: вернуть id, создав при отсутствии.
-    function ensureCity(name) {
-      const clean = String(name == null ? "" : name).trim();
-      if (!clean) return null;
-      const found = findCity.get(clean);
-      if (found) return found.id;
-      const info = insCity.run(clean);
-      citiesAdded++;
-      return info.lastInsertRowid;
-    }
-
+  // Полная замена: очистить все города и зоны, затем загрузить снимок. Одна транзакция.
+  // Используется при «Получить данные из хранилища» (синхронизация с GitHub).
+  replaceAll(payload) {
     const tx = db.transaction(() => {
-      // Сначала города из списка (даже пустые, без зон).
-      for (const c of inCities) ensureCity(c && c.name);
-      // Затем зоны, привязывая к городу по имени.
-      for (const z of inZones) {
-        if (!z || typeof z.geojson !== "string" || !z.geojson.length) continue;
-        const name = String(z.name == null ? "" : z.name).trim() || "zone";
-        const cityId = z.cityName == null ? null : ensureCity(z.cityName);
-        insZone.run(
-          cityId,
-          name,
-          z.geojson,
-          z.point_count == null ? null : z.point_count,
-          z.source_filename == null ? null : z.source_filename,
-          z.geojson_updated_at == null ? null : z.geojson_updated_at,
-          z.xlsx_generated_at == null ? null : z.xlsx_generated_at
-        );
-        zonesAdded++;
-      }
+      db.prepare("DELETE FROM zones").run();
+      db.prepare("DELETE FROM cities").run();
+      return doImport(payload);
     });
-    tx();
-
-    appendLog("info", `Загружена резервная копия: +${citiesAdded} городов, +${zonesAdded} зон`);
-    return { citiesAdded, zonesAdded };
+    const res = tx();
+    appendLog("info", `Данные заменены из хранилища: ${res.citiesAdded} городов, ${res.zonesAdded} зон`);
+    return res;
   },
 };
+
+// Внутренняя логика вставки городов/зон (БЕЗ транзакции — вызывается внутри
+// транзакций importAll/replaceAll). Города по имени переиспользуются.
+function doImport(payload) {
+  const p = payload || {};
+  if (p.app !== "geojson-zones" && p.app !== "geojson-zones-sync") {
+    throw new Error("Файл не является резервной копией GeoJSON Zones");
+  }
+  const inCities = Array.isArray(p.cities) ? p.cities : [];
+  const inZones = Array.isArray(p.zones) ? p.zones : [];
+
+  const findCity = db.prepare("SELECT id FROM cities WHERE name = ?");
+  const insCity = db.prepare("INSERT INTO cities (name) VALUES (?)");
+  const insZone = db.prepare(
+    `INSERT INTO zones (city_id, name, geojson, point_count, source_filename,
+                        geojson_updated_at, xlsx_generated_at)
+     VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)`
+  );
+
+  let citiesAdded = 0;
+  let zonesAdded = 0;
+
+  function ensureCity(name) {
+    const clean = String(name == null ? "" : name).trim();
+    if (!clean) return null;
+    const found = findCity.get(clean);
+    if (found) return found.id;
+    const info = insCity.run(clean);
+    citiesAdded++;
+    return info.lastInsertRowid;
+  }
+
+  for (const c of inCities) ensureCity(c && c.name);
+  for (const z of inZones) {
+    if (!z || typeof z.geojson !== "string" || !z.geojson.length) continue;
+    const name = String(z.name == null ? "" : z.name).trim() || "zone";
+    const cityId = z.cityName == null ? null : ensureCity(z.cityName);
+    insZone.run(
+      cityId,
+      name,
+      z.geojson,
+      z.point_count == null ? null : z.point_count,
+      z.source_filename == null ? null : z.source_filename,
+      z.geojson_updated_at == null ? null : z.geojson_updated_at,
+      z.xlsx_generated_at == null ? null : z.xlsx_generated_at
+    );
+    zonesAdded++;
+  }
+  return { citiesAdded, zonesAdded };
+}
 
 module.exports = { init, cities, zones, log, data, appendLog };
