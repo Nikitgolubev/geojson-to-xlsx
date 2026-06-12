@@ -22,8 +22,21 @@
     const helpBtn = el("button", { class: "btn small secondary", text: "Как создать токен", onclick: () => {
       window.api.system.openExternal("https://github.com/settings/tokens?type=beta");
     } });
+    // Примечание-подсказка (жёлтый «!», текст по наведению).
+    const noteText =
+      "Запись в GitHub невозможна без авторизации. Создайте GitHub fine-grained " +
+      "Personal Access Token с правами Contents: Read and write на репозиторий " +
+      "geojson-to-xlsx и вставьте его в поле токена (кнопка «Как создать токен»). " +
+      "Токен хранится локально на вашем ПК и в репозиторий не попадает. " +
+      "Скачивание и проверка актуальности работают и без токена — репозиторий публичный.";
+    const note = el("span", { class: "sync-note", tabindex: "0", title: noteText }, [
+      el("span", { class: "sync-note-mark", text: "!" }),
+      el("span", { class: "sync-note-text", text: noteText }),
+    ]);
+
     const tokenRow = el("div", { class: "sync-token-row" }, [
       el("label", { class: "addr-input-label", text: "Токен:" }),
+      note,
       lampEl,
       el("div", { class: "addr-input-wrap" }, [tokenInput]),
       saveTokenBtn,
