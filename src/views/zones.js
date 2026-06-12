@@ -139,6 +139,39 @@
     }
   }
 
+  // Лёгкое обновление UI при изменении выбора — без перерисовки списка (без мигания).
+  // Данные не меняются, поэтому повторный запрос к БД не нужен.
+  function syncSelection(container) {
+    // Строки зон: класс .selected + состояние вложенного чекбокса.
+    container.querySelectorAll(".zone-row[data-zone-id]").forEach((row) => {
+      const id = Number(row.dataset.zoneId);
+      const on = selected.has(id);
+      row.classList.toggle("selected", on);
+      const cb = row.querySelector(".zone-check");
+      if (cb && cb.checked !== on) cb.checked = on;
+    });
+
+    // Групповые чекбоксы: id зон берём из родителя (секция «без города» или город).
+    container.querySelectorAll(".group-check").forEach((cb) => {
+      const scope = cb.closest(".zone-section, .city-node");
+      const ids = scope ? [...scope.querySelectorAll(".zone-row[data-zone-id]")].map((r) => Number(r.dataset.zoneId)) : [];
+      const all = ids.length > 0 && ids.every((id) => selected.has(id));
+      cb.checked = all;
+      cb.indeterminate = !all && ids.some((id) => selected.has(id));
+    });
+
+    // Панель массовых действий: вставить/обновить/убрать, не трогая список.
+    const existing = container.querySelector(".bulk-bar");
+    if (selected.size === 0) {
+      if (existing) existing.remove();
+    } else if (existing) {
+      const count = existing.querySelector(".bulk-count");
+      if (count) count.textContent = `Выбрано: ${selected.size}`;
+    } else {
+      container.insertBefore(buildBulkBar(container), container.firstChild);
+    }
+  }
+
   // ---------- панель массовых действий ----------
   function buildBulkBar(container) {
     const bar = el("div", { class: "bulk-bar" });
@@ -155,7 +188,7 @@
     bar.appendChild(el("button", { class: "btn small secondary", text: "Очистить город", onclick: () => bulkAssign(null, container) }));
     bar.appendChild(el("button", { class: "btn small", text: "Скачать", onclick: () => bulkDownload(container) }));
     bar.appendChild(el("button", { class: "btn small danger", text: "Удалить зоны", onclick: () => bulkDelete(container) }));
-    bar.appendChild(el("button", { class: "btn small secondary", text: "Снять выделение", onclick: () => { selected.clear(); render(container); } }));
+    bar.appendChild(el("button", { class: "btn small secondary", text: "Снять выделение", onclick: () => { selected.clear(); syncSelection(container); } }));
     return bar;
   }
 
@@ -225,7 +258,7 @@
     cb.addEventListener("change", () => {
       if (cb.checked) ids.forEach((id) => selected.add(id));
       else ids.forEach((id) => selected.delete(id));
-      render(container);
+      syncSelection(container);
     });
     return cb;
   }
@@ -238,7 +271,7 @@
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selected.add(z.id);
       else selected.delete(z.id);
-      render(container);
+      syncSelection(container);
     });
 
     const meta = el("div", { class: "zone-meta" }, [
@@ -248,7 +281,7 @@
       el("span", { class: "zone-date", text: `точек: ${z.point_count == null ? "?" : z.point_count}` }),
     ]);
 
-    return el("div", { class: "zone-row" + (isUnassigned ? " is-unassigned" : "") + (selected.has(z.id) ? " selected" : "") }, [
+    return el("div", { class: "zone-row" + (isUnassigned ? " is-unassigned" : "") + (selected.has(z.id) ? " selected" : ""), dataset: { zoneId: String(z.id) } }, [
       checkbox,
       el("div", { class: "zone-num", text: index != null ? `${index}.` : "" }),
       el("div", { class: "zone-info" }, [
