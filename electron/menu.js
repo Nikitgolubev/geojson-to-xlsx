@@ -43,6 +43,8 @@ function buildAppMenu(actions) {
       submenu: [
         { label: "О программе", click: a.onHelp },
         { type: "separator" },
+        { label: "Проверить обновления", click: a.onCheckUpdate },
+        { type: "separator" },
         { label: "Обратная связь", click: a.onFeedback },
         { label: "Сообщить об ошибке", click: a.onBug },
       ],

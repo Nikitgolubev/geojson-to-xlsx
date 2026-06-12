@@ -234,6 +234,7 @@
   function zoneRow(z, container, isUnassigned, index) {
     const checkbox = el("input", { type: "checkbox", class: "zone-check" });
     checkbox.checked = selected.has(z.id);
+    checkbox.addEventListener("click", (e) => e.stopPropagation()); // не сворачивать details
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selected.add(z.id);
       else selected.delete(z.id);

@@ -9,6 +9,7 @@ const { geojsonToXlsxBuffer } = require("./xlsx-export");
 const { buildAppMenu } = require("./menu");
 const { writeAllToFolders, writeZonesToFolder } = require("./export-folders");
 const { buildEml } = require("./bug-report");
+const { isNewer, parseLatest } = require("./version-check");
 
 // Точка входа главного процесса Electron.
 // IPC-обработчики (cities/zones/log) регистрируются в registerIpc().
@@ -278,6 +279,50 @@ async function importBackup() {
   return { canceled: false, ...res };
 }
 
+async function checkForUpdates() {
+  const https = require("https");
+  const currentVersion = app.getVersion();
+  const url = "https://api.github.com/repos/Nikitgolubev/geojson-to-xlsx/releases/latest";
+  let json = "";
+  try {
+    await new Promise((resolve, reject) => {
+      https.get(url, { headers: { "User-Agent": "geojson-zones-app" } }, (res) => {
+        res.on("data", (chunk) => { json += chunk; });
+        res.on("end", resolve);
+        res.on("error", reject);
+      }).on("error", reject);
+    });
+    const release = parseLatest(json);
+    if (isNewer(release.tag, currentVersion)) {
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "Доступно обновление",
+        message: `Найдена новая версия: ${release.tag}`,
+        detail: `Текущая версия: v${currentVersion}\nОткрыть страницу загрузки?`,
+        buttons: ["Открыть страницу загрузки", "Позже"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (response === 0) await shell.openExternal(release.htmlUrl);
+    } else {
+      await dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "Обновлений нет",
+        message: `Версия актуальна (v${currentVersion})`,
+        buttons: ["OK"],
+      });
+    }
+  } catch (err) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "Ошибка проверки обновлений",
+      message: "Не удалось получить информацию об обновлениях",
+      detail: String(err.message || err),
+      buttons: ["OK"],
+    });
+  }
+}
+
 app.whenReady().then(() => {
   // Тестовый режим: изолированная БД во временной папке (не трогаем данные пользователя).
   if (process.env.GZ_TESTDIR) {
@@ -308,6 +353,7 @@ app.whenReady().then(() => {
     onBug: () => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("menu:bug");
     },
+    onCheckUpdate: () => checkForUpdates(),
   });
 
   // macOS: пересоздать окно при клике на иконку в доке (задел под будущую mac-версию)
