@@ -113,8 +113,40 @@ const MAPTEST_JS = `(async function(){
   return "OK ✔ checklist=" + checks + " drawn=" + drawn + " afterClear=" + afterClear + " global=" + globalCount + " autoCity=" + autoCity;
 })()`;
 
+// Проверка вкладки «Проверка адреса»: монтирование без ошибок + сквозной путь
+// данные(IPC)→математика входимости (pointInGeojson). Геокодинг (сеть) тут не дёргаем.
+const ADDRTEST_JS = `(async function(){
+  const api = window.api;
+  const sleep = (ms) => new Promise(function(r){ setTimeout(r, ms); });
+  const poly = JSON.stringify({ type:"Polygon", coordinates:[[[37.4,55.6],[37.8,55.6],[37.8,55.9],[37.4,55.9],[37.4,55.6]]] });
+  const city = await api.cities.create("МК");
+  await api.zones.create({ name:"ZoneMSK", geojson: poly, cityId: city.id, pointCount: 5 });
+  await window.App.navigate("addrcheck");
+  await sleep(400);
+  const hasInput = !!document.querySelector(".addr-input");
+  const hasMap = !!document.querySelector(".addr-map");
+  const hasLog = !!document.querySelector(".addr-log");
+  const logLines = document.querySelectorAll(".addr-log-list li").length;
+  // Сквозной путь как во вью: все зоны + входимость точки Москвы (lat=55.75, lon=37.65).
+  const zones = await api.zones.allForCheck();
+  let matched = 0;
+  for (const z of zones) {
+    try { if (window.GeoJSONLib.pointInGeojson(37.65, 55.75, JSON.parse(z.geojson))) matched++; } catch(e){}
+  }
+  const outside = window.GeoJSONLib.pointInGeojson(30.31, 59.94, JSON.parse(zones[0].geojson)); // СПб — снаружи
+  if (!hasInput) throw new Error("нет поля ввода адреса");
+  if (!hasMap) throw new Error("нет карты");
+  if (!hasLog) throw new Error("нет журнала проверки");
+  if (logLines < 1) throw new Error("журнал пуст");
+  if (zones.length !== 1) throw new Error("allForCheck: ожидалась 1 зона, получено " + zones.length);
+  if (!zones[0].geojson) throw new Error("allForCheck не вернул geojson");
+  if (matched !== 1) throw new Error("входимость: ожидалось 1 совпадение, получено " + matched);
+  if (outside) throw new Error("точка СПб ошибочно засчитана внутри");
+  return "OK ✔ input/map/log смонтированы, logLines=" + logLines + ", matched=" + matched;
+})()`;
+
 function isEnabled() {
-  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST);
+  return !!(process.env.GZ_DEBUG || process.env.GZ_SELFTEST || process.env.GZ_FUNCTEST || process.env.GZ_BADGETEST || process.env.GZ_MAPTEST || process.env.GZ_ADDRTEST);
 }
 
 // Навешивает отладочные хуки на окно. app нужен для app.exit().
@@ -126,7 +158,9 @@ function attach(mainWindow, app) {
     wc.on("did-fail-load", (_e, code, desc) => console.log("[did-fail-load]", code, desc));
   }
 
-  const mode = process.env.GZ_MAPTEST
+  const mode = process.env.GZ_ADDRTEST
+    ? { label: "ADDRTEST", js: ADDRTEST_JS, delay: 1500 }
+    : process.env.GZ_MAPTEST
     ? { label: "MAPTEST", js: MAPTEST_JS, delay: 1500 }
     : process.env.GZ_BADGETEST
     ? { label: "BADGETEST", js: BADGETEST_JS, delay: 1500 }

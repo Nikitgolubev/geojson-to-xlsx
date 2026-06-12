@@ -15,6 +15,7 @@
     "test:bugreport": "node test/bugreport-smoke.js",
     "test:badge": "node scripts/test-badge.js",
     "test:map": "node scripts/test-map.js",
+    "test:addr": "node scripts/test-addr.js",
     "make:icon": "node scripts/make-icon-run.js",
     "test:ui": "node scripts/test-ui.js",
     "test:func": "node scripts/test-func.js",
