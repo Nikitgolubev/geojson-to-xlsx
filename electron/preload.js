@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld("api", {
     pickAttachment: () => invoke("system:pickAttachment"),
     sendBugReport: (payload) => invoke("system:sendBugReport", payload),
     geocode: (query) => invoke("system:geocode", query),
+    saveToDownloads: (filename, content) => invoke("system:saveToDownloads", filename, content),
   },
   // Подписка на события из main (только разрешённые каналы). Возвращает отписку.
   on: (channel, callback) => {

@@ -7,7 +7,7 @@ const db = require("./db");
 const selftest = require("./selftest");
 const { geojsonToXlsxBuffer } = require("./xlsx-export");
 const { buildAppMenu } = require("./menu");
-const { writeAllToFolders, writeZonesToFolder } = require("./export-folders");
+const { writeAllToFolders, writeZonesToFolder, sanitizeName } = require("./export-folders");
 const { buildEml } = require("./bug-report");
 const { isNewer, parseLatest } = require("./version-check");
 const { parseNominatim, buildSearchUrl } = require("./geocode");
@@ -94,6 +94,7 @@ function registerIpc() {
   // Система / обратная связь
   handle("system:openExternal", (url) => openExternal(url));
   handle("system:geocode", (query) => geocodeAddress(query));
+  handle("system:saveToDownloads", (filename, content) => saveToDownloads(filename, content));
   handle("system:pickAttachment", () => pickAttachment());
   handle("system:sendBugReport", (payload) => sendBugReport(payload));
 }
@@ -104,6 +105,22 @@ async function openExternal(url) {
   if (!/^(https?:|mailto:)/i.test(u)) throw new Error("Недопустимая ссылка");
   await shell.openExternal(u);
   return { ok: true };
+}
+
+// Сохранить текстовый файл в системную папку «Загрузки» (коллизии → " (2)").
+function saveToDownloads(filename, content) {
+  const dir = app.getPath("downloads");
+  let base = sanitizeName(String(filename || "polygon").replace(/\.geojson$/i, ""));
+  if (!base) base = "polygon";
+  let target = path.join(dir, base + ".geojson");
+  let n = 2;
+  while (fs.existsSync(target)) {
+    target = path.join(dir, `${base} (${n}).geojson`);
+    n++;
+  }
+  fs.writeFileSync(target, String(content == null ? "" : content), "utf-8");
+  db.appendLog("info", `Полигон сохранён в Загрузки → ${target}`);
+  return { path: target };
 }
 
 // Выбрать файл-вложение для письма об ошибке.

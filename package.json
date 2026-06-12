@@ -11,6 +11,7 @@
     "test:geojson": "node test/geojson-smoke.js",
     "test:pip": "node test/geojson-pip.js",
     "test:geocode": "node test/geocode-parse.js",
+    "test:polygon": "node test/polygon-build.js",
     "test:folders": "node test/export-folders-smoke.js",
     "test:bugreport": "node test/bugreport-smoke.js",
     "test:badge": "node scripts/test-badge.js",

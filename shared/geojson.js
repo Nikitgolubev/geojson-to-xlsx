@@ -239,5 +239,38 @@
     return walk(geojson);
   }
 
-  return { extractLonLat, parseAndExtract, pointInRing, pointInPolygon, pointInGeojson };
+  // ---------- Построение полигона (для раздела «Создание полигона») ----------
+  // points — массив вершин: {lat,lng} | {latitude,longitude} | [lng,lat].
+  // Возвращает GeoJSON FeatureCollection с одним Polygon, кольцо замкнуто
+  // (первая вершина дублируется в конце). Координаты GeoJSON — [lng, lat].
+  function buildPolygonGeojson(points, name) {
+    const ring = [];
+    (points || []).forEach((p) => {
+      let lng, lat;
+      if (Array.isArray(p)) { lng = Number(p[0]); lat = Number(p[1]); }
+      else if (p && typeof p === "object") {
+        lng = Number(p.lng != null ? p.lng : p.longitude);
+        lat = Number(p.lat != null ? p.lat : p.latitude);
+      }
+      if (Number.isFinite(lng) && Number.isFinite(lat)) ring.push([lng, lat]);
+    });
+    // Замыкаем кольцо, если ещё не замкнуто.
+    if (ring.length >= 3) {
+      const first = ring[0];
+      const last = ring[ring.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) ring.push([first[0], first[1]]);
+    }
+    return {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { name: String(name == null ? "" : name) },
+          geometry: { type: "Polygon", coordinates: [ring] },
+        },
+      ],
+    };
+  }
+
+  return { extractLonLat, parseAndExtract, pointInRing, pointInPolygon, pointInGeojson, buildPolygonGeojson };
 });
